@@ -1,0 +1,109 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --color-ivory: #F7F2EA;
+    --color-cream: #FBF9F5;
+    --color-sand: #EFE9DE;
+    --color-champagne: #D8C2A0;
+    --color-champagne-light: #F1E7D7;
+    --color-taupe: #6F5847;
+    --color-taupe-light: #8E7766;
+    --color-espresso: #34251F;
+    --color-espresso-dark: #221612;
+    --color-burgundy: #682334;
+    --color-gold: #B49A62;
+    --color-gold-light: #D4BE8D;
+    --color-border: #E8E0D2;
+    --color-border-subtle: #F0EAE1;
+  }
+
+  body {
+    background-color: var(--color-cream);
+    color: var(--color-espresso);
+    font-family: 'Manrope', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    overflow-x: hidden;
+  }
+
+  h1, h2, h3, .font-serif {
+    font-family: 'Bodoni Moda', 'Cormorant Garamond', Garamond, 'Playfair Display', Georgia, serif;
+  }
+
+  .font-brand {
+    font-family: 'Cinzel', 'Bodoni Moda', 'Cormorant Garamond', serif;
+    letter-spacing: 0.28em;
+  }
+
+  .font-italiana {
+    font-family: 'Italiana', 'Cinzel', serif;
+  }
+
+  .font-bodoni {
+    font-family: 'Bodoni Moda', Georgia, serif;
+  }
+
+  ::selection {
+    background-color: rgba(216, 194, 160, 0.35);
+    color: #221612;
+  }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #FBF9F5;
+}
+::-webkit-scrollbar-thumb {
+  background: #D8C2A0;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #B49A62;
+}
+
+/* Luxury animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes marquee {
+  0% { transform: translateX(0%); }
+  100% { transform: translateX(-50%); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-marquee {
+  display: flex;
+  width: max-content;
+  animation: marquee 35s linear infinite;
+}
+
+.animate-marquee:hover {
+  animation-play-state: paused;
+}
+
+.editorial-shadow {
+  box-shadow: 0 20px 40px -15px rgba(52, 37, 31, 0.07);
+}
+
+.editorial-shadow-lg {
+  box-shadow: 0 30px 60px -12px rgba(52, 37, 31, 0.12);
+}
+
+/* Smooth Image zoom on hover */
+.img-zoom-container {
+  overflow: hidden;
+}
+.img-zoom-container img {
+  transition: transform 0.85s cubic-bezier(0.25, 1, 0.5, 1);
+}
+.img-zoom-container:hover img {
+  transform: scale(1.05);
+}
