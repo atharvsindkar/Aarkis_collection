@@ -118,7 +118,7 @@ export default function ProductDetailModal() {
                 <div className="mb-6">
                   <div className="flex items-center justify-between text-xs text-[#6F5847] mb-2 font-medium">
                     <span>
-                      Selected Shade: <strong className="text-[#34251F]">{activeVariant.name}</strong>
+                      Selected Shade: <strong className="text-[#34251F]">{activeVariant.colorName || activeVariant.name}</strong>
                     </span>
                     {product.variants.length > 1 && (
                       <span className="text-[11px] text-[#8E7766]">
@@ -167,20 +167,32 @@ export default function ProductDetailModal() {
                   </div>
 
                   <div className="grid grid-cols-4 gap-2">
-                    {product.sizes.map((size) => (
-                      <button
-                        key={size}
-                        type="button"
-                        onClick={() => setSelectedSize(size)}
-                        className={`py-2 text-xs font-semibold uppercase tracking-wider rounded-xs border transition-colors ${
-                          selectedSize === size
-                            ? 'bg-[#34251F] text-white border-[#34251F]'
-                            : 'bg-white text-[#6F5847] border-[#E8E0D2] hover:border-[#B49A62]'
-                        }`}
-                      >
-                        {size}
-                      </button>
-                    ))}
+                    {product.sizes.map((size) => {
+                      const stockCount = activeVariant.inventory?.[size] !== undefined ? activeVariant.inventory[size] : 10;
+                      const isOutOfStock = stockCount <= 0;
+                      return (
+                        <button
+                          key={size}
+                          type="button"
+                          disabled={isOutOfStock}
+                          onClick={() => setSelectedSize(size)}
+                          className={`py-2 text-xs font-semibold uppercase tracking-wider rounded-xs border transition-colors relative ${
+                            isOutOfStock
+                              ? 'bg-neutral-100 text-neutral-400 border-neutral-200 cursor-not-allowed line-through'
+                              : selectedSize === size
+                              ? 'bg-[#34251F] text-white border-[#34251F]'
+                              : 'bg-white text-[#6F5847] border-[#E8E0D2] hover:border-[#B49A62]'
+                          }`}
+                        >
+                          {size}
+                          {stockCount > 0 && stockCount <= 3 && (
+                            <span className="block text-[8px] font-normal text-amber-600 lowercase tracking-normal">
+                              {stockCount} left
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
 

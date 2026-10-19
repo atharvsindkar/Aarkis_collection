@@ -5,10 +5,10 @@ import { PRODUCTS, CATEGORIES } from '../data/products';
 import { useShop } from '../context/ShopContext';
 
 export default function ProductSection() {
-  const { activeCategoryFilter, setActiveCategoryFilter } = useShop();
+  const { activeCategoryFilter, setActiveCategoryFilter, products } = useShop();
 
   // Filter products according to category
-  const filteredProducts = PRODUCTS.filter((product) => {
+  const filteredProducts = (products || []).filter((product) => {
     if (activeCategoryFilter === 'all') return true;
     return product.categoryId === activeCategoryFilter;
   });

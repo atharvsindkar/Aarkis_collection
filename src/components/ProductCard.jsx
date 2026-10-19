@@ -97,7 +97,7 @@ export default function ProductCard({ product }) {
           <div className="mb-4">
             <div className="flex items-center justify-between text-[11px] text-[#6F5847] mb-2">
               <span className="font-light">
-                Shade: <span className="font-medium text-[#34251F]">{activeVariant.name}</span>
+                Shade: <span className="font-medium text-[#34251F]">{activeVariant.colorName || activeVariant.name}</span>
               </span>
               {product.variants.length > 1 && (
                 <span className="text-[10px] text-[#A69483] uppercase tracking-wider">

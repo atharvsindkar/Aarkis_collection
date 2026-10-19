@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { ShopProvider } from './context/ShopContext';
 import AnnouncementBar from './components/AnnouncementBar';
 import Navbar from './components/Navbar';
@@ -16,9 +16,26 @@ import SearchModal from './components/SearchModal';
 import ComingSoonModal from './components/ComingSoonModal';
 import SizeGuideModal from './components/SizeGuideModal';
 import ToastNotification from './components/ToastNotification';
+import AdminApp from './admin/AdminApp';
 import './App.css';
 
 export default function App() {
+  const [isAdminRoute, setIsAdminRoute] = useState(
+    window.location.pathname.startsWith('/admin')
+  );
+
+  useEffect(() => {
+    const handlePopState = () => {
+      setIsAdminRoute(window.location.pathname.startsWith('/admin'));
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  if (isAdminRoute) {
+    return <AdminApp />;
+  }
+
   return (
     <ShopProvider>
       <div className="min-h-screen flex flex-col bg-[#FBF9F5] text-[#2C211B] selection:bg-[#D8C2A0]/40">

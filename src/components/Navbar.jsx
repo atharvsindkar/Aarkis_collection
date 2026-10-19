@@ -176,15 +176,15 @@ export default function Navbar() {
                 <Search size={18} sm:size={19} strokeWidth={1.5} />
               </button>
 
-              {/* Account (desktop only) */}
-              <button
-                type="button"
-                onClick={() => handleNavClick('all', 'active')}
+              {/* Account / Admin Portal */}
+              <a
+                href="/admin"
                 className="p-1 text-[#221612] hover:text-[#682334] transition-colors focus:outline-none hidden sm:block"
+                title="Atelier Admin Portal"
                 aria-label="Account"
               >
                 <User size={19} strokeWidth={1.5} />
-              </button>
+              </a>
 
               {/* Wishlist */}
               <a
@@ -299,13 +299,19 @@ export default function Navbar() {
             </div>
           </div>
 
-          <div className="pt-6 border-t border-[#E8E0D2] text-center">
+          <div className="pt-6 border-t border-[#E8E0D2] text-center space-y-1.5">
             <p className="font-serif italic text-sm text-[#8E7766]">
               Style your own way
             </p>
-            <p className="text-[9px] text-[#A69483] tracking-widest uppercase mt-1">
+            <p className="text-[9px] text-[#A69483] tracking-widest uppercase">
               Maison Aarkis • Est. 2026
             </p>
+            <a
+              href="/admin"
+              className="inline-block text-[10px] uppercase tracking-widest text-[#B49A62] underline pt-1"
+            >
+              Atelier Admin Portal →
+            </a>
           </div>
         </div>
       </div>

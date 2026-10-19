@@ -24,6 +24,11 @@ export const ShopProvider = ({ children }) => {
     }
   });
 
+  // Dynamic products and categories from backend API with fallback
+  const [products, setProducts] = useState(PRODUCTS);
+  const [categories, setCategories] = useState([]);
+  const [isLoadingCatalog, setIsLoadingCatalog] = useState(false);
+
   // Drawer / Modal states
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -34,6 +39,45 @@ export const ShopProvider = ({ children }) => {
   const [comingSoonCategory, setComingSoonCategory] = useState(null);
   const [isSizeGuideOpen, setIsSizeGuideOpen] = useState(false);
   const [toast, setToast] = useState(null);
+
+  // Fetch catalog from backend API on mount
+  useEffect(() => {
+    const fetchCatalog = async () => {
+      try {
+        setIsLoadingCatalog(true);
+        const [pRes, cRes] = await Promise.all([
+          fetch('/api/products').catch(() => null),
+          fetch('/api/categories').catch(() => null)
+        ]);
+
+        if (pRes && pRes.ok) {
+          const pData = await pRes.json();
+          if (pData.success && Array.isArray(pData.products) && pData.products.length > 0) {
+            // Map _id to id if needed for component compatibility
+            const mapped = pData.products.map(p => ({
+              ...p,
+              id: p.slug || p._id || p.id,
+              dbId: p._id
+            }));
+            setProducts(mapped);
+          }
+        }
+
+        if (cRes && cRes.ok) {
+          const cData = await cRes.json();
+          if (cData.success && Array.isArray(cData.categories)) {
+            setCategories(cData.categories);
+          }
+        }
+      } catch (err) {
+        console.warn('Backend catalog sync fallback to local preset:', err);
+      } finally {
+        setIsLoadingCatalog(false);
+      }
+    };
+
+    fetchCatalog();
+  }, []);
 
   // Sync to local storage
   useEffect(() => {
@@ -159,6 +203,9 @@ export const ShopProvider = ({ children }) => {
   return (
     <ShopContext.Provider
       value={{
+        products,
+        categories,
+        isLoadingCatalog,
         cart,
         cartCount,
         cartSubtotal,
