@@ -8,14 +8,24 @@ export default function Navbar() {
     cartCount,
     wishlist,
     setIsCartOpen,
+    setIsWishlistOpen,
     setIsSearchOpen,
+    setIsAccountOpen,
+    customer,
     setActiveCategoryFilter,
     openComingSoon,
+    categories,
+    products,
   } = useShop();
 
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [clothingDropdownOpen, setClothingDropdownOpen] = useState(false);
+  const [moreDropdownOpen, setMoreDropdownOpen] = useState(false);
+
+  const effectiveCategories = (categories && categories.length > 0) ? categories : CATEGORIES;
+  const primaryCategories = effectiveCategories.slice(0, 3);
+  const extraCategories = effectiveCategories.slice(3);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -25,17 +35,42 @@ export default function Navbar() {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  const handleNavClick = (catId, status) => {
+  const isCategoryActive = (catId) => {
+    if (catId === 'all') return true;
+    const norm = (catId || '').toLowerCase().replace(/[\s_]+/g, '-');
+    const dbCat = (categories || []).find(c => (c.slug || c.id || '').toLowerCase() === norm);
+    if (dbCat && dbCat.status === 'active') return true;
+
+    const hasActiveProduct = (products || []).some(p => {
+      const pCatSlug = (p.categoryId || p.category || '').toLowerCase().replace(/[\s_]+/g, '-');
+      return (pCatSlug === norm || (p.category && p.category.toLowerCase().includes(catId.replace('-', ' ')))) &&
+             p.status === 'active' &&
+             !p.isComingSoon;
+    });
+    if (hasActiveProduct) return true;
+
+    return false;
+  };
+
+  const handleNavClick = (catId) => {
     setMobileMenuOpen(false);
     setClothingDropdownOpen(false);
-    if (status === 'active' || catId === 'all') {
+    if (catId === 'new-arrivals') {
+      const element = document.getElementById('new-arrivals');
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth' });
+        return;
+      }
+    }
+    if (catId === 'all' || isCategoryActive(catId)) {
       setActiveCategoryFilter(catId);
       const element = document.getElementById('collection');
       if (element) {
         element.scrollIntoView({ behavior: 'smooth' });
       }
     } else {
-      const cat = CATEGORIES.find((c) => c.id === catId);
+      const dbCat = (categories || []).find(c => (c.slug || c.id || '').toLowerCase() === catId.toLowerCase());
+      const cat = dbCat || CATEGORIES.find((c) => c.id === catId);
       openComingSoon(cat ? cat.name : 'Category');
     }
   };
@@ -83,65 +118,70 @@ export default function Navbar() {
               <nav className="hidden lg:flex items-center space-x-6 xl:space-x-8 text-[12px] tracking-[0.18em] uppercase font-medium text-[#221612]">
                 <button
                   type="button"
-                  onClick={() => handleNavClick('all', 'active')}
+                  onClick={() => handleNavClick('new-arrivals')}
                   className="hover:text-[#682334] transition-colors py-1 relative group whitespace-nowrap"
                 >
                   <span>New Arrivals</span>
                   <span className="absolute bottom-0 left-0 w-0 h-[1.5px] bg-[#682334] transition-all duration-300 group-hover:w-full"></span>
                 </button>
 
-                {/* Clothing with dropdown */}
-                <div
-                  className="relative"
-                  onMouseEnter={() => setClothingDropdownOpen(true)}
-                  onMouseLeave={() => setClothingDropdownOpen(false)}
-                >
-                  <button
-                    type="button"
-                    onClick={() => handleNavClick('western-wear', 'active')}
-                    className="flex items-center space-x-1 hover:text-[#682334] transition-colors py-1 group whitespace-nowrap"
+                {/* Primary Categories */}
+                {primaryCategories.map((cat) => {
+                  const catSlug = cat.slug || cat.id;
+                  return (
+                    <button
+                      key={cat._id || catSlug}
+                      type="button"
+                      onClick={() => handleNavClick(catSlug)}
+                      className="hover:text-[#682334] transition-colors py-1 relative group whitespace-nowrap"
+                    >
+                      <span>{cat.name}</span>
+                      <span className="absolute bottom-0 left-0 w-0 h-[1.5px] bg-[#682334] transition-all duration-300 group-hover:w-full"></span>
+                    </button>
+                  );
+                })}
+
+                {/* More Categories Dropdown if new categories are added beyond primary */}
+                {extraCategories.length > 0 && (
+                  <div
+                    className="relative"
+                    onMouseEnter={() => setMoreDropdownOpen(true)}
+                    onMouseLeave={() => setMoreDropdownOpen(false)}
                   >
-                    <span>Western Wear</span>
-                    <ChevronDown size={13} className="text-[#8E7766] group-hover:text-[#682334] transition-transform" />
-                  </button>
+                    <button
+                      type="button"
+                      className="flex items-center space-x-1 hover:text-[#682334] transition-colors py-1 group whitespace-nowrap"
+                    >
+                      <span>More</span>
+                      <ChevronDown size={13} className={`text-[#8E7766] group-hover:text-[#682334] transition-transform ${moreDropdownOpen ? 'rotate-180' : ''}`} />
+                    </button>
 
-                  {/* Dropdown */}
-                  {clothingDropdownOpen && (
-                    <div className="absolute top-full left-0 w-56 bg-white border border-[#E8E0D2] shadow-xl py-3 px-2 z-50 animate-fade-in text-left">
-                      <button
-                        onClick={() => handleNavClick('western-wear', 'active')}
-                        className="w-full text-left px-3 py-2 text-[11px] uppercase tracking-wider text-[#34251F] hover:bg-[#FAF7F2] hover:text-[#682334] rounded-xs flex items-center justify-between"
-                      >
-                        <span>Waistcoats & Vests</span>
-                        <span className="text-[9px] bg-[#EFE9DE] px-1.5 py-0.5 rounded text-[#6F5847]">Now</span>
-                      </button>
-                      <button
-                        onClick={() => handleNavClick('western-wear', 'active')}
-                        className="w-full text-left px-3 py-2 text-[11px] uppercase tracking-wider text-[#34251F] hover:bg-[#FAF7F2] hover:text-[#682334] rounded-xs"
-                      >
-                        Tailored Trouser Sets
-                      </button>
-                    </div>
-                  )}
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => handleNavClick('festive-wear', 'preview')}
-                  className="hover:text-[#682334] transition-colors py-1 relative group whitespace-nowrap"
-                >
-                  <span>Festive Wear</span>
-                  <span className="absolute bottom-0 left-0 w-0 h-[1.5px] bg-[#682334] transition-all duration-300 group-hover:w-full"></span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => handleNavClick('casual-wear', 'preview')}
-                  className="hover:text-[#682334] transition-colors py-1 relative group whitespace-nowrap"
-                >
-                  <span>Casual Wear</span>
-                  <span className="absolute bottom-0 left-0 w-0 h-[1.5px] bg-[#682334] transition-all duration-300 group-hover:w-full"></span>
-                </button>
+                    {moreDropdownOpen && (
+                      <div className="absolute top-full left-0 w-56 bg-white border border-[#E8E0D2] shadow-xl py-2 px-1 z-50 animate-fade-in text-left rounded-xs">
+                        {extraCategories.map((cat) => {
+                          const catSlug = cat.slug || cat.id;
+                          const isActive = isCategoryActive(catSlug);
+                          return (
+                            <button
+                              key={cat._id || catSlug}
+                              type="button"
+                              onClick={() => {
+                                setMoreDropdownOpen(false);
+                                handleNavClick(catSlug);
+                              }}
+                              className="w-full text-left px-3 py-2 text-[11px] uppercase tracking-wider text-[#34251F] hover:bg-[#FAF7F2] hover:text-[#682334] rounded-xs flex items-center justify-between transition-colors"
+                            >
+                              <span>{cat.name}</span>
+                              <span className={`text-[9px] px-1.5 py-0.5 rounded ${isActive ? 'bg-[#EFE9DE] text-[#6F5847]' : 'bg-[#FAF2E8] text-[#8E7766]'}`}>
+                                {isActive ? 'Available' : 'Preview'}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
               </nav>
             </div>
 
@@ -176,28 +216,35 @@ export default function Navbar() {
                 <Search size={18} sm:size={19} strokeWidth={1.5} />
               </button>
 
-              {/* Account / Admin Portal */}
-              <a
-                href="/admin"
-                className="p-1 text-[#221612] hover:text-[#682334] transition-colors focus:outline-none hidden sm:block"
-                title="Atelier Admin Portal"
-                aria-label="Account"
+              {/* Customer Account Profile Modal Trigger */}
+              <button
+                type="button"
+                onClick={() => setIsAccountOpen(true)}
+                className="p-1 text-[#221612] hover:text-[#682334] transition-colors focus:outline-none hidden sm:block relative"
+                title={customer ? `Patron: ${customer.name || customer.phone}` : "Patron Sign In (Phone & OTP)"}
+                aria-label="Customer Account"
               >
                 <User size={19} strokeWidth={1.5} />
-              </a>
+                {customer && (
+                  <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-600 ring-2 ring-white" />
+                )}
+              </button>
 
               {/* Wishlist */}
-              <a
-                href="#collection"
-                onClick={() => handleNavClick('all', 'active')}
-                className="p-1 text-[#221612] hover:text-[#682334] transition-colors relative"
+              <button
+                type="button"
+                onClick={() => setIsWishlistOpen(true)}
+                className="p-1 text-[#221612] hover:text-[#682334] transition-colors relative focus:outline-none"
                 aria-label="Wishlist"
+                title="View Saved Wishlist"
               >
                 <Heart size={18} sm:size={19} strokeWidth={1.5} />
-                <span className="absolute -top-1 -right-1 w-3.5 h-3.5 sm:w-4 sm:h-4 bg-[#682334] text-white text-[8px] sm:text-[9px] font-bold rounded-full flex items-center justify-center">
-                  {wishlist.length > 0 ? wishlist.length : 1}
-                </span>
-              </a>
+                {wishlist.length > 0 && (
+                  <span className="absolute -top-1 -right-1 w-3.5 h-3.5 sm:w-4 sm:h-4 bg-[#682334] text-white text-[8px] sm:text-[9px] font-bold rounded-full flex items-center justify-center">
+                    {wishlist.length}
+                  </span>
+                )}
+              </button>
 
               {/* Bag */}
               <button
@@ -268,50 +315,51 @@ export default function Navbar() {
             </div>
 
             {/* Navigation links inside drawer */}
-            <div className="mt-8 space-y-5 text-sm uppercase tracking-widest text-[#221612]">
+            <div className="mt-8 space-y-4 text-sm uppercase tracking-widest text-[#221612]">
               <button
-                onClick={() => handleNavClick('all', 'active')}
-                className="block w-full text-left py-2 border-b border-[#EFE9DE] hover:text-[#682334]"
+                onClick={() => handleNavClick('new-arrivals')}
+                className="block w-full text-left py-2.5 border-b border-[#EFE9DE] hover:text-[#682334] flex items-center justify-between"
               >
-                New Arrivals
+                <span>New Arrivals</span>
+                <span className="text-[9px] bg-amber-100 text-amber-900 px-2 py-0.5 rounded font-semibold">New Capsule</span>
               </button>
-              <button
-                onClick={() => handleNavClick('western-wear', 'active')}
-                className="block w-full text-left py-2 border-b border-[#EFE9DE] hover:text-[#682334] flex items-center justify-between"
-              >
-                <span>Western Wear</span>
-                <span className="text-[9px] bg-[#EFE9DE] px-2 py-0.5 rounded text-[#6F5847]">Available Now</span>
-              </button>
-              <button
-                onClick={() => handleNavClick('festive-wear', 'preview')}
-                className="block w-full text-left py-2 border-b border-[#EFE9DE] hover:text-[#682334] flex items-center justify-between"
-              >
-                <span>Festive Wear</span>
-                <span className="text-[9px] bg-[#FAF2E8] px-2 py-0.5 rounded text-[#8E7766]">Coming Soon</span>
-              </button>
-              <button
-                onClick={() => handleNavClick('casual-wear', 'preview')}
-                className="block w-full text-left py-2 border-b border-[#EFE9DE] hover:text-[#682334] flex items-center justify-between"
-              >
-                <span>Casual Wear</span>
-                <span className="text-[9px] bg-[#FAF2E8] px-2 py-0.5 rounded text-[#8E7766]">Coming Soon</span>
-              </button>
+
+              {effectiveCategories.map((cat) => {
+                const catSlug = cat.slug || cat.id;
+                const isActive = isCategoryActive(catSlug);
+                return (
+                  <button
+                    key={cat._id || catSlug}
+                    onClick={() => handleNavClick(catSlug)}
+                    className="block w-full text-left py-2.5 border-b border-[#EFE9DE] hover:text-[#682334] flex items-center justify-between"
+                  >
+                    <span>{cat.name}</span>
+                    <span className={`text-[9px] px-2 py-0.5 rounded ${isActive ? 'bg-[#EFE9DE] text-[#6F5847]' : 'bg-[#FAF2E8] text-[#8E7766]'}`}>
+                      {isActive ? 'Available Now' : 'Coming Soon'}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
-          <div className="pt-6 border-t border-[#E8E0D2] text-center space-y-1.5">
+          <div className="pt-6 border-t border-[#E8E0D2] text-center space-y-2">
+            <button
+              type="button"
+              onClick={() => {
+                setMobileMenuOpen(false);
+                setIsAccountOpen(true);
+              }}
+              className="w-full py-2 bg-[#34251F] text-[#FAF7F2] text-xs uppercase tracking-widest font-semibold rounded-xs"
+            >
+              {customer ? 'View Patron Account' : 'Sign In with Phone'}
+            </button>
             <p className="font-serif italic text-sm text-[#8E7766]">
               Style your own way
             </p>
             <p className="text-[9px] text-[#A69483] tracking-widest uppercase">
               Maison Aarkis • Est. 2026
             </p>
-            <a
-              href="/admin"
-              className="inline-block text-[10px] uppercase tracking-widest text-[#B49A62] underline pt-1"
-            >
-              Atelier Admin Portal →
-            </a>
           </div>
         </div>
       </div>

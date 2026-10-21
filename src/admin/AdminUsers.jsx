@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Shield, UserPlus, Power, AlertCircle, Check, Loader2, KeyRound } from 'lucide-react';
 import { useAdminAuth } from './AdminAuthContext';
+import { useAdminTheme } from './AdminThemeContext';
 
 export default function AdminUsers() {
   const { authFetch, adminUser } = useAdminAuth();
+  const { isDark } = useAdminTheme();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -101,14 +103,16 @@ export default function AdminUsers() {
 
   return (
     <div className="space-y-8 animate-fade-in">
-      <div className="pb-6 border-b border-[#342922]">
+      <div className={`pb-6 border-b ${isDark ? 'border-[#342922]' : 'border-[#E8E0D2]'}`}>
         <span className="text-[10px] uppercase tracking-[0.25em] text-[#B49A62] font-semibold">
           Access Control & Governance
         </span>
-        <h2 className="font-serif text-2xl sm:text-3xl text-[#FAF7F2] font-normal">
+        <h2 className={`font-serif text-2xl sm:text-3xl font-normal ${
+          isDark ? 'text-[#FAF7F2]' : 'text-[#281D18]'
+        }`}>
           Multi-Administrator Directory
         </h2>
-        <p className="text-xs text-[#A69483] mt-1 font-light">
+        <p className={`text-xs mt-1 font-light ${isDark ? 'text-[#A69483]' : 'text-[#6F5847]'}`}>
           Manage Owner and Admin accounts. Only authenticated Owners can provision or deactivate credentials.
         </p>
       </div>
@@ -129,39 +133,53 @@ export default function AdminUsers() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Provision Admin Form */}
-        <div className="bg-[#221B17] border border-[#3E322A] p-6 rounded-xs shadow-lg space-y-4 h-fit">
-          <h3 className="font-serif text-lg text-[#FAF7F2] font-medium flex items-center space-x-2">
+        <div className={`border p-6 rounded-xs shadow-lg space-y-4 h-fit ${
+          isDark ? 'bg-[#221B17] border-[#3E322A]' : 'bg-white border-[#E8E0D2]'
+        }`}>
+          <h3 className={`font-serif text-lg font-medium flex items-center space-x-2 ${
+            isDark ? 'text-[#FAF7F2]' : 'text-[#281D18]'
+          }`}>
             <UserPlus size={16} className="text-[#B49A62]" />
             <span>Add Business Partner / Admin</span>
           </h3>
 
           <form onSubmit={handleCreateAdmin} className="space-y-4 text-xs">
             <div>
-              <label className="block text-[11px] text-[#A69483] mb-1">Full Name *</label>
+              <label className={`block text-[11px] mb-1 font-medium ${isDark ? 'text-[#A69483]' : 'text-[#6F5847]'}`}>
+                Full Name *
+              </label>
               <input
                 type="text"
                 required
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="e.g. Partner Name"
-                className="w-full px-3 py-2 bg-[#181311] border border-[#3E322A] text-white rounded-xs focus:outline-none focus:border-[#B49A62]"
+                className={`w-full px-3 py-2 border rounded-xs focus:outline-none focus:border-[#B49A62] ${
+                  isDark ? 'bg-[#181311] border-[#3E322A] text-white' : 'bg-[#FAF7F2] border-[#D8C2A0] text-black'
+                }`}
               />
             </div>
 
             <div>
-              <label className="block text-[11px] text-[#A69483] mb-1">Email Address *</label>
+              <label className={`block text-[11px] mb-1 font-medium ${isDark ? 'text-[#A69483]' : 'text-[#6F5847]'}`}>
+                Email Address *
+              </label>
               <input
                 type="email"
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="partner@aarkiscollection.com"
-                className="w-full px-3 py-2 bg-[#181311] border border-[#3E322A] text-white rounded-xs focus:outline-none focus:border-[#B49A62]"
+                className={`w-full px-3 py-2 border rounded-xs focus:outline-none focus:border-[#B49A62] ${
+                  isDark ? 'bg-[#181311] border-[#3E322A] text-white' : 'bg-[#FAF7F2] border-[#D8C2A0] text-black'
+                }`}
               />
             </div>
 
             <div>
-              <label className="block text-[11px] text-[#A69483] mb-1">Initial Password * (Min 8 chars)</label>
+              <label className={`block text-[11px] mb-1 font-medium ${isDark ? 'text-[#A69483]' : 'text-[#6F5847]'}`}>
+                Initial Password * (Min 8 chars)
+              </label>
               <input
                 type="password"
                 required
@@ -169,16 +187,22 @@ export default function AdminUsers() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••••••"
-                className="w-full px-3 py-2 bg-[#181311] border border-[#3E322A] text-white rounded-xs focus:outline-none focus:border-[#B49A62]"
+                className={`w-full px-3 py-2 border rounded-xs focus:outline-none focus:border-[#B49A62] ${
+                  isDark ? 'bg-[#181311] border-[#3E322A] text-white' : 'bg-[#FAF7F2] border-[#D8C2A0] text-black'
+                }`}
               />
             </div>
 
             <div>
-              <label className="block text-[11px] text-[#A69483] mb-1">Privilege Role</label>
+              <label className={`block text-[11px] mb-1 font-medium ${isDark ? 'text-[#A69483]' : 'text-[#6F5847]'}`}>
+                Privilege Role
+              </label>
               <select
                 value={role}
                 onChange={(e) => setRole(e.target.value)}
-                className="w-full px-2.5 py-2 bg-[#181311] border border-[#3E322A] text-white rounded-xs"
+                className={`w-full px-2.5 py-2 border rounded-xs focus:outline-none focus:border-[#B49A62] ${
+                  isDark ? 'bg-[#181311] border-[#3E322A] text-white' : 'bg-[#FAF7F2] border-[#D8C2A0] text-black'
+                }`}
               >
                 <option value="admin">Administrator (Orders, Catalog, Coupons)</option>
                 <option value="owner">Owner (Full Governance & User Provisioning)</option>
@@ -188,7 +212,7 @@ export default function AdminUsers() {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="w-full py-2.5 bg-[#B49A62] hover:bg-[#A38853] text-[#181311] font-semibold uppercase tracking-wider text-xs rounded-xs flex items-center justify-center space-x-1"
+              className="w-full py-2.5 bg-[#B49A62] hover:bg-[#A38853] text-[#181311] font-semibold uppercase tracking-wider text-xs rounded-xs flex items-center justify-center space-x-1 shadow-sm transition-colors"
             >
               {isSubmitting ? (
                 <Loader2 size={14} className="animate-spin" />
@@ -203,8 +227,12 @@ export default function AdminUsers() {
         </div>
 
         {/* Existing Administrators List */}
-        <div className="lg:col-span-2 bg-[#221B17] border border-[#3E322A] p-6 rounded-xs shadow-lg space-y-4">
-          <h3 className="font-serif text-lg text-[#FAF7F2] font-medium flex items-center space-x-2">
+        <div className={`lg:col-span-2 border p-6 rounded-xs shadow-lg space-y-4 ${
+          isDark ? 'bg-[#221B17] border-[#3E322A]' : 'bg-white border-[#E8E0D2]'
+        }`}>
+          <h3 className={`font-serif text-lg font-medium flex items-center space-x-2 ${
+            isDark ? 'text-[#FAF7F2]' : 'text-[#281D18]'
+          }`}>
             <Shield size={16} className="text-[#B49A62]" />
             <span>Authorized Accounts ({users.length})</span>
           </h3>
@@ -215,14 +243,16 @@ export default function AdminUsers() {
               Loading administrators...
             </div>
           ) : (
-            <div className="divide-y divide-[#2E241E]">
+            <div className={`divide-y ${isDark ? 'divide-[#2E241E]' : 'divide-[#EDE5D8]'}`}>
               {users.map((u) => {
                 const isSelf = adminUser?.id === u._id;
                 return (
                   <div key={u._id} className="py-4 flex items-center justify-between">
                     <div>
                       <div className="flex items-center space-x-2">
-                        <span className="font-medium text-[#FAF7F2]">{u.name}</span>
+                        <span className={`font-medium ${isDark ? 'text-[#FAF7F2]' : 'text-[#281D18]'}`}>
+                          {u.name}
+                        </span>
                         {isSelf && (
                           <span className="px-1.5 py-0.5 bg-[#B49A62]/20 text-[#B49A62] border border-[#B49A62]/40 text-[9px] rounded-xs font-semibold">
                             YOU
@@ -234,9 +264,9 @@ export default function AdminUsers() {
                           {u.role}
                         </span>
                       </div>
-                      <p className="text-xs text-[#8E7766] mt-0.5">{u.email}</p>
-                      <p className="text-[10px] text-[#7F6B5C] mt-1">
-                        Status: <strong className={u.status === 'active' ? 'text-emerald-400' : 'text-rose-400'}>{u.status}</strong>
+                      <p className={`text-xs mt-0.5 ${isDark ? 'text-[#8E7766]' : 'text-[#6F5847]'}`}>{u.email}</p>
+                      <p className={`text-[10px] mt-1 ${isDark ? 'text-[#7F6B5C]' : 'text-[#8E7766]'}`}>
+                        Status: <strong className={u.status === 'active' ? 'text-emerald-500' : 'text-rose-500'}>{u.status}</strong>
                         {u.lastLogin && ` | Last Active: ${new Date(u.lastLogin).toLocaleDateString()}`}
                       </p>
                     </div>

@@ -4,8 +4,8 @@ import { useAdminAuth } from './AdminAuthContext';
 
 export default function AdminLogin() {
   const { login } = useAdminAuth();
-  const [email, setEmail] = useState('owner@aarkiscollection.com');
-  const [password, setPassword] = useState('AarkisOwner@2026!');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 

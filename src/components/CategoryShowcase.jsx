@@ -1,10 +1,31 @@
 import React from 'react';
 import { ArrowUpRight, Lock, Sparkles } from 'lucide-react';
-import { CATEGORIES } from '../data/products';
+import { CATEGORIES as FALLBACK_CATEGORIES } from '../data/products';
 import { useShop } from '../context/ShopContext';
 
 export default function CategoryShowcase() {
-  const { setActiveCategoryFilter, openComingSoon } = useShop();
+  const { setActiveCategoryFilter, openComingSoon, categories, products } = useShop();
+
+  // Combine dynamic categories with fallback photography
+  const displayedCategories = (categories && categories.length > 0)
+    ? categories.map(cat => {
+        const fallback = FALLBACK_CATEGORIES.find(fc => fc.id === cat.slug || fc.name.toLowerCase() === cat.name.toLowerCase());
+        const hasActiveProducts = (products || []).some(
+          p => (p.category === cat.name || p.categoryId === cat.slug || p.categoryId === cat.id) &&
+               p.status === 'active' && !p.isComingSoon
+        );
+        const isActive = cat.status === 'active' || hasActiveProducts;
+        return {
+          id: cat.slug || cat._id,
+          name: cat.name,
+          subline: cat.subline || fallback?.subline || 'Atelier Collection',
+          description: cat.description || fallback?.description || '',
+          heroImage: cat.heroImage || fallback?.heroImage || '/images/hero/12.png',
+          status: isActive ? 'active' : (cat.status || 'preview'),
+          statusLabel: isActive ? 'Available Now' : (cat.statusLabel || 'Coming Soon'),
+        };
+      })
+    : FALLBACK_CATEGORIES;
 
   const handleCategorySelect = (category) => {
     if (category.status === 'active') {
@@ -38,9 +59,9 @@ export default function CategoryShowcase() {
           </p>
         </div>
 
-        {/* 3 Categories Editorial Grid */}
+        {/* Categories Editorial Grid */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          {CATEGORIES.map((cat, index) => {
+          {displayedCategories.map((cat, index) => {
             const isActive = cat.status === 'active';
 
             return (

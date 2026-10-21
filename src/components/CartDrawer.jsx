@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { 
   X, Trash2, Plus, Minus, ShoppingBag, ArrowRight, Check, Tag, ShieldCheck, 
-  MapPin, User, CreditCard, ChevronLeft, AlertCircle, Loader2
+  MapPin, User, CreditCard, ChevronLeft, AlertCircle, Loader2, Lock 
 } from 'lucide-react';
 import { useShop } from '../context/ShopContext';
 
@@ -15,11 +15,17 @@ export default function CartDrawer() {
     clearCart,
     cartSubtotal,
     cartCount,
-    showToast
+    showToast,
+    customer,
+    setIsAccountOpen,
+    refreshCatalog,
+    updateCartItemVariant,
+    products,
   } = useShop();
 
   // steps: 'cart' | 'checkout' | 'success'
   const [step, setStep] = useState('cart');
+  const [editingCartItemId, setEditingCartItemId] = useState(null);
   const [couponCode, setCouponCode] = useState('');
   const [appliedCoupon, setAppliedCoupon] = useState(null);
   const [couponLoading, setCouponLoading] = useState(false);
@@ -27,18 +33,52 @@ export default function CartDrawer() {
 
   // Checkout form
   const [formData, setFormData] = useState({
-    fullName: '',
-    email: '',
-    phone: '',
+    fullName: customer?.name || '',
+    email: customer?.email || '',
+    phone: customer?.phone || '',
     addressLine1: '',
     city: '',
     state: '',
     postalCode: '',
     paymentMethod: 'cod' // 'cod' or 'razorpay'
   });
+  const [selectedAddressId, setSelectedAddressId] = useState(null);
   const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
   const [placedOrder, setPlacedOrder] = useState(null);
   const [checkoutError, setCheckoutError] = useState('');
+
+  const applyAddress = (addr) => {
+    const addrId = addr._id || addr.id;
+    setSelectedAddressId(addrId);
+    setFormData(prev => ({
+      ...prev,
+      fullName: addr.fullName || prev.fullName,
+      phone: addr.phone || prev.phone,
+      addressLine1: addr.addressLine1 + (addr.addressLine2 ? ', ' + addr.addressLine2 : ''),
+      city: addr.city || '',
+      state: addr.state || '',
+      postalCode: addr.postalCode || ''
+    }));
+  };
+
+  // Update form fields when customer signs in
+  React.useEffect(() => {
+    if (customer) {
+      setFormData(prev => ({
+        ...prev,
+        fullName: prev.fullName || customer.name || '',
+        email: prev.email || customer.email || '',
+        phone: prev.phone || customer.phone || ''
+      }));
+
+      if (customer.addresses && customer.addresses.length > 0 && !selectedAddressId) {
+        const defaultAddr = customer.addresses.find(a => a.isDefault) || customer.addresses[0];
+        if (defaultAddr) {
+          applyAddress(defaultAddr);
+        }
+      }
+    }
+  }, [customer?.phone, customer?.email, customer?.addresses?.length]);
 
   if (!isCartOpen) return null;
 
@@ -86,8 +126,20 @@ export default function CartDrawer() {
   // Submit order to API
   const handlePlaceOrder = async (e) => {
     e.preventDefault();
+    if (!customer) {
+      setCheckoutError('Please sign in with your mobile phone number before completing your order.');
+      setIsAccountOpen(true);
+      return;
+    }
+
     if (!formData.fullName || !formData.email || !formData.phone || !formData.addressLine1 || !formData.city || !formData.postalCode) {
       setCheckoutError('Please complete all required shipping fields.');
+      return;
+    }
+
+    const cleanPhone = formData.phone.replace(/[\s\-\(\)\+]/g, '');
+    if (cleanPhone.length < 10) {
+      setCheckoutError('Please enter a valid phone number with at least 10 digits.');
       return;
     }
 
@@ -129,6 +181,7 @@ export default function CartDrawer() {
         setPlacedOrder(data.order);
         setStep('success');
         clearCart();
+        refreshCatalog(true);
         showToast(`Order #${data.order.orderNumber} confirmed!`);
       } else {
         setCheckoutError(data.message || 'Unable to place order. Please review stock or details.');
@@ -249,17 +302,116 @@ export default function CartDrawer() {
                               </button>
                             </div>
 
-                            <div className="mt-1 flex items-center space-x-3 text-xs text-[#7F6B5C]">
-                              <span className="flex items-center space-x-1.5">
-                                <span
-                                  className="w-2.5 h-2.5 rounded-full border border-black/10"
-                                  style={{ backgroundColor: item.colorHex }}
-                                />
-                                <span>{item.colorName}</span>
-                              </span>
-                              <span>•</span>
-                              <span>Size: {item.size}</span>
-                            </div>
+                            {/* Shade & Size Specification with Inline Editor */}
+                            {(() => {
+                              const product = (products || []).find(
+                                (p) => p.id === item.productId || p._id === item.productId || p.slug === item.productId
+                              );
+                              const isEditing = editingCartItemId === item.cartItemId;
+
+                              return (
+                                <div>
+                                  <div className="mt-1 flex items-center justify-between text-xs text-[#7F6B5C]">
+                                    <div className="flex items-center space-x-2">
+                                      <span className="flex items-center space-x-1.5">
+                                        <span
+                                          className="w-2.5 h-2.5 rounded-full border border-black/10"
+                                          style={{ backgroundColor: item.colorHex }}
+                                        />
+                                        <span>{item.colorName}</span>
+                                      </span>
+                                      <span>•</span>
+                                      <span>Size: {item.size}</span>
+                                    </div>
+
+                                    {product && (
+                                      <button
+                                        type="button"
+                                        onClick={() => setEditingCartItemId(isEditing ? null : item.cartItemId)}
+                                        className="text-[11px] text-[#B49A62] hover:text-[#34251F] underline font-medium"
+                                      >
+                                        {isEditing ? 'Done' : 'Edit'}
+                                      </button>
+                                    )}
+                                  </div>
+
+                                  {/* Interactive Inline Editor */}
+                                  {isEditing && product && (
+                                    <div className="my-2.5 p-2.5 bg-[#FAF7F2] border border-[#D8C2A0] rounded-xs space-y-2 text-xs animate-fade-in">
+                                      {/* Color Variant Options */}
+                                      {product.variants?.length > 1 && (
+                                        <div>
+                                          <span className="text-[10px] uppercase tracking-wider text-[#8E7766] font-medium block mb-1">
+                                            Select Shade:
+                                          </span>
+                                          <div className="flex items-center gap-1.5 flex-wrap">
+                                            {product.variants.map((v) => (
+                                              <button
+                                                key={v.id}
+                                                type="button"
+                                                onClick={() => updateCartItemVariant(item.cartItemId, v, item.size)}
+                                                className={`flex items-center space-x-1.5 px-2 py-1 rounded-xs border text-[11px] transition-all ${
+                                                  item.colorId === v.id
+                                                    ? 'bg-white border-[#34251F] font-semibold text-[#34251F] shadow-xs ring-1 ring-[#34251F]'
+                                                    : 'bg-white/70 border-[#E8E0D2] text-[#6F5847] hover:border-[#B49A62]'
+                                                }`}
+                                              >
+                                                <span
+                                                  className="w-2 h-2 rounded-full border border-black/10"
+                                                  style={{ backgroundColor: v.colorHex }}
+                                                />
+                                                <span>{v.name || v.colorName}</span>
+                                              </button>
+                                            ))}
+                                          </div>
+                                        </div>
+                                      )}
+
+                                      {/* Size Options */}
+                                      <div>
+                                        <span className="text-[10px] uppercase tracking-wider text-[#8E7766] font-medium block mb-1">
+                                          Select Size:
+                                        </span>
+                                        <div className="flex items-center gap-1.5">
+                                          {(product.sizes || ['S', 'M', 'L', 'XL']).map((s) => {
+                                            const activeV =
+                                              product.variants?.find((v) => v.id === item.colorId) ||
+                                              product.variants?.[0];
+                                            const sKey =
+                                              Object.keys(activeV?.inventory || {}).find(
+                                                (k) => k.trim().toUpperCase() === s.trim().toUpperCase()
+                                              ) || s;
+                                            const stock =
+                                              activeV?.inventory?.[sKey] !== undefined
+                                                ? Number(activeV.inventory[sKey])
+                                                : 10;
+                                            const isSoldOut = stock <= 0;
+
+                                            return (
+                                              <button
+                                                key={s}
+                                                type="button"
+                                                disabled={isSoldOut}
+                                                onClick={() => updateCartItemVariant(item.cartItemId, activeV, s)}
+                                                className={`px-2.5 py-1 text-xs uppercase font-medium rounded-xs border transition-colors ${
+                                                  isSoldOut
+                                                    ? 'bg-neutral-100 text-neutral-300 border-neutral-200 line-through cursor-not-allowed'
+                                                    : item.size === s
+                                                    ? 'bg-[#34251F] text-white border-[#34251F]'
+                                                    : 'bg-white text-[#6F5847] border-[#E8E0D2] hover:border-[#B49A62]'
+                                                }`}
+                                              >
+                                                {s}
+                                              </button>
+                                            );
+                                          })}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })()}
 
                             <p className="text-xs font-semibold text-[#34251F] mt-1.5">
                               {item.priceDisplay}
@@ -267,32 +419,42 @@ export default function CartDrawer() {
                           </div>
 
                           {/* Quantity Controls */}
-                          <div className="flex items-center justify-between pt-2">
-                            <div className="flex items-center border border-[#D8C2A0] rounded-xs bg-white">
-                              <button
-                                type="button"
-                                onClick={() => updateQuantity(item.cartItemId, -1)}
-                                className="p-1 px-2 text-[#6F5847] hover:bg-[#FAF7F2]"
-                                aria-label="Decrease quantity"
-                              >
-                                <Minus size={12} />
-                              </button>
-                              <span className="px-2 text-xs font-medium text-[#34251F]">
-                                {item.quantity}
+                          <div className="pt-2">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center border border-[#D8C2A0] rounded-xs bg-white">
+                                <button
+                                  type="button"
+                                  onClick={() => updateQuantity(item.cartItemId, -1)}
+                                  className="p-1 px-2 text-[#6F5847] hover:bg-[#FAF7F2]"
+                                  aria-label="Decrease quantity"
+                                >
+                                  <Minus size={12} />
+                                </button>
+                                <span className="px-2 text-xs font-medium text-[#34251F]">
+                                  {item.quantity}
+                                </span>
+                                <button
+                                  type="button"
+                                  disabled={item.maxStock !== undefined && item.quantity >= item.maxStock}
+                                  onClick={() => updateQuantity(item.cartItemId, 1)}
+                                  className="p-1 px-2 text-[#6F5847] hover:bg-[#FAF7F2] disabled:opacity-30 disabled:cursor-not-allowed"
+                                  aria-label="Increase quantity"
+                                  title={item.maxStock !== undefined && item.quantity >= item.maxStock ? `Max available stock reached (${item.maxStock})` : 'Increase quantity'}
+                                >
+                                  <Plus size={12} />
+                                </button>
+                              </div>
+
+                              <span className="text-xs font-medium text-[#34251F]">
+                                ₹{(item.price * item.quantity).toLocaleString()}
                               </span>
-                              <button
-                                type="button"
-                                onClick={() => updateQuantity(item.cartItemId, 1)}
-                                className="p-1 px-2 text-[#6F5847] hover:bg-[#FAF7F2]"
-                                aria-label="Increase quantity"
-                              >
-                                <Plus size={12} />
-                              </button>
                             </div>
 
-                            <span className="text-xs font-medium text-[#34251F]">
-                              ₹{(item.price * item.quantity).toLocaleString()}
-                            </span>
+                            {item.maxStock !== undefined && item.quantity >= item.maxStock && (
+                              <p className="text-[10px] text-amber-700 mt-1 font-medium">
+                                Only {item.maxStock} available in atelier stock for size {item.size}
+                              </p>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -305,6 +467,22 @@ export default function CartDrawer() {
             {/* STEP 2: CONCIERGE CHECKOUT FORM */}
             {step === 'checkout' && (
               <form id="checkout-form" onSubmit={handlePlaceOrder} className="space-y-4">
+                {!customer && (
+                  <div className="p-3.5 bg-amber-50 border border-amber-300 rounded-xs text-xs text-amber-900 flex items-center justify-between">
+                    <div className="flex items-center space-x-2">
+                      <Lock size={14} className="text-[#B49A62] shrink-0" />
+                      <span>Phone verification is mandatory to complete order.</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setIsAccountOpen(true)}
+                      className="px-2.5 py-1 bg-[#34251F] text-white text-[10px] uppercase tracking-wider font-semibold rounded-xs ml-2"
+                    >
+                      Sign In Now
+                    </button>
+                  </div>
+                )}
+
                 {checkoutError && (
                   <div className="p-3 bg-red-50 border border-red-200 text-red-700 text-xs rounded-xs flex items-center space-x-2">
                     <AlertCircle size={15} />
@@ -357,17 +535,73 @@ export default function CartDrawer() {
 
                 {/* Shipping Address */}
                 <div className="bg-white p-4 border border-[#E8E0D2] rounded-xs space-y-3">
-                  <h3 className="text-xs uppercase tracking-widest font-semibold text-[#34251F] flex items-center space-x-2">
-                    <MapPin size={14} className="text-[#B49A62]" />
-                    <span>Delivery Address</span>
-                  </h3>
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-xs uppercase tracking-widest font-semibold text-[#34251F] flex items-center space-x-2">
+                      <MapPin size={14} className="text-[#B49A62]" />
+                      <span>Delivery Address</span>
+                    </h3>
+                    {customer?.addresses && customer.addresses.length > 0 && (
+                      <span className="text-[10px] text-[#8E7766] uppercase tracking-wider font-medium">
+                        {customer.addresses.length} saved
+                      </span>
+                    )}
+                  </div>
+
+                  {/* 1-Click Saved Addresses Picker */}
+                  {customer?.addresses && customer.addresses.length > 0 && (
+                    <div className="space-y-1.5 pb-2 border-b border-[#F0EAE1]">
+                      <span className="text-[11px] text-[#6F5847] font-medium block">
+                        Select from your saved addresses:
+                      </span>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {customer.addresses.map((addr) => {
+                          const addrId = addr._id || addr.id;
+                          const isSelected = selectedAddressId === addrId;
+                          return (
+                            <button
+                              key={addrId}
+                              type="button"
+                              onClick={() => applyAddress(addr)}
+                              className={`text-left p-2.5 rounded-xs border text-xs transition-all ${
+                                isSelected
+                                  ? 'border-[#34251F] bg-[#FAF7F2] ring-1 ring-[#34251F]'
+                                  : 'border-[#E8E0D2] bg-white hover:border-[#D8C2A0]'
+                              }`}
+                            >
+                              <div className="flex items-center justify-between font-semibold text-[#281D18] mb-0.5">
+                                <span className="flex items-center space-x-1">
+                                  <span>{addr.label || 'Home'}</span>
+                                  {addr.isDefault && (
+                                    <span className="text-[9px] bg-stone-100 text-stone-600 px-1 py-0.2 rounded-xs font-normal">
+                                      Default
+                                    </span>
+                                  )}
+                                </span>
+                                {isSelected && <Check size={12} className="text-[#34251F]" />}
+                              </div>
+                              <p className="text-[11px] text-[#6F5847] truncate">
+                                {addr.addressLine1}
+                              </p>
+                              <p className="text-[10px] text-[#8E7766]">
+                                {addr.city}, {addr.postalCode}
+                              </p>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
                   <div>
                     <label className="block text-[11px] text-[#6F5847] mb-1">Address *</label>
                     <input
                       type="text"
                       required
                       value={formData.addressLine1}
-                      onChange={(e) => setFormData({ ...formData, addressLine1: e.target.value })}
+                      onChange={(e) => {
+                        setSelectedAddressId(null);
+                        setFormData({ ...formData, addressLine1: e.target.value });
+                      }}
                       placeholder="Flat, building, street, landmark"
                       className="w-full px-3 py-2 bg-[#FAF7F2] border border-[#D8C2A0] text-xs text-[#281D18] rounded-xs focus:outline-none focus:border-[#34251F]"
                     />
@@ -585,14 +819,42 @@ export default function CartDrawer() {
               </div>
 
               {step === 'cart' ? (
-                <button
-                  type="button"
-                  onClick={() => setStep('checkout')}
-                  className="w-full py-3.5 bg-[#34251F] hover:bg-[#201511] text-[#FAF7F2] text-xs font-semibold uppercase tracking-[0.2em] rounded-xs flex items-center justify-center space-x-2 transition-colors shadow"
-                >
-                  <span>Proceed to Checkout</span>
-                  <ArrowRight size={15} />
-                </button>
+                !customer ? (
+                  <div className="space-y-2">
+                    <div className="p-2.5 bg-[#FAF7F2] border border-[#D8C2A0] rounded-xs flex items-center space-x-2 text-[11px] text-[#6F5847]">
+                      <Lock size={13} className="text-[#B49A62] shrink-0" />
+                      <span>Phone authentication is required to complete your order.</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setIsAccountOpen(true)}
+                      className="w-full py-3.5 bg-[#34251F] hover:bg-[#201511] text-[#FAF7F2] text-xs font-semibold uppercase tracking-[0.2em] rounded-xs flex items-center justify-center space-x-2 transition-colors shadow"
+                    >
+                      <User size={15} />
+                      <span>Sign In with Phone to Order</span>
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setStep('checkout')}
+                    className="w-full py-3.5 bg-[#34251F] hover:bg-[#201511] text-[#FAF7F2] text-xs font-semibold uppercase tracking-[0.2em] rounded-xs flex items-center justify-center space-x-2 transition-colors shadow"
+                  >
+                    <span>Proceed to Checkout</span>
+                    <ArrowRight size={15} />
+                  </button>
+                )
+              ) : !customer ? (
+                <div className="space-y-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsAccountOpen(true)}
+                    className="w-full py-3.5 bg-[#34251F] hover:bg-[#201511] text-[#FAF7F2] text-xs font-semibold uppercase tracking-[0.2em] rounded-xs flex items-center justify-center space-x-2 transition-colors shadow"
+                  >
+                    <Lock size={15} />
+                    <span>Sign In with Phone to Complete Order</span>
+                  </button>
+                </div>
               ) : (
                 <button
                   type="submit"

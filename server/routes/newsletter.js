@@ -1,5 +1,6 @@
 import express from 'express';
 import { Subscriber } from '../models/Misc.js';
+import { sendInternalError } from '../middleware/errorHandler.js';
 
 const router = express.Router();
 
@@ -25,7 +26,7 @@ router.post('/subscribe', async (req, res) => {
     await Subscriber.create({ email: normalized, isActive: true });
     res.status(201).json({ success: true, message: 'Subscribed successfully. Welcome to the Aarkis Circle.' });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    return sendInternalError(res, error, 'Failed to process newsletter subscription.');
   }
 });
 
@@ -41,7 +42,7 @@ router.post('/unsubscribe', async (req, res) => {
 
     res.json({ success: true, message: 'You have been unsubscribed from promotional announcements.' });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    return sendInternalError(res, error, 'Failed to process unsubscribe request.');
   }
 });
 

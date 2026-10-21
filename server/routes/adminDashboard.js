@@ -1,6 +1,7 @@
 import express from 'express';
 import { authenticate, authorize } from '../middleware/auth.js';
 import { ordersDB, productsDB, auditLogsDB } from '../config/db.js';
+import { sendInternalError } from '../middleware/errorHandler.js';
 
 const router = express.Router();
 
@@ -16,27 +17,51 @@ router.get('/metrics', async (req, res) => {
 
     const todayOrdersCount = allOrders.filter(o => new Date(o.createdAt) >= todayStart).length;
     const awaitingActionCount = allOrders.filter(o => ['placed', 'confirmed'].includes(o.orderStatus)).length;
-    const inTransitCount = allOrders.filter(o => o.shipmentDetails?.shipmentStatus === 'in_transit').length;
+    
+    // In Transit: orders marked as shipped or with courier in transit/shipped/dispatched
+    const inTransitCount = allOrders.filter(o => 
+      o.orderStatus === 'shipped' || 
+      ['in_transit', 'shipped', 'dispatched'].includes(o.shipment?.shipmentStatus || o.shipmentDetails?.shipmentStatus)
+    ).length;
+
     const deliveredCount = allOrders.filter(o => o.orderStatus === 'delivered').length;
+
     const cancelledCount = allOrders.filter(o => o.orderStatus === 'cancelled').length;
-    const refundsPendingCount = allOrders.filter(o => o.refundDetails?.status === 'pending').length;
+
+    // Pending Refunds: orders marked as refund_pending, with refundDetails.status === 'pending', or cancelled unrefunded orders
+    const pendingRefundOrders = allOrders.filter(o => 
+      (o.paymentStatus === 'refund_pending' || 
+       o.refundDetails?.status === 'pending' || 
+       (o.orderStatus === 'cancelled' && o.paymentStatus !== 'refunded')) &&
+      o.paymentStatus !== 'refunded' &&
+      o.refundDetails?.status !== 'processed'
+    );
+    const refundsPendingCount = pendingRefundOrders.length;
+    const pendingRefundAmount = pendingRefundOrders.reduce((sum, o) => 
+      sum + Number(o.refundDetails?.amount || o.finalAmount || o.totalAmount || 0), 0
+    );
 
     // Real paid revenue calculation
     const paidOrders = allOrders.filter(o => o.paymentStatus === 'paid' && o.orderStatus !== 'cancelled');
-    const totalSales = paidOrders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
+    const totalSales = paidOrders.reduce((sum, o) => sum + (o.totalAmount || o.finalAmount || 0), 0);
 
-    const activeProducts = allProducts.filter(p => p.status === 'active');
+    const activeProducts = allProducts.filter(p => p.status === 'active' || p.status === undefined);
 
-    // Low stock product calculation
+    // Low stock product calculation (any variant with inventory count <= 3)
     let lowStockCount = 0;
     for (const p of activeProducts) {
       let isLow = false;
       for (const v of (p.variants || [])) {
-        if (v.inventory) {
+        if (v.inventory && typeof v.inventory === 'object') {
           for (const size of Object.keys(v.inventory)) {
-            if (v.inventory[size] <= 2) isLow = true;
+            const count = Number(v.inventory[size]);
+            if (!isNaN(count) && count > 0 && count <= 3) {
+              isLow = true;
+              break;
+            }
           }
         }
+        if (isLow) break;
       }
       if (isLow) lowStockCount++;
     }
@@ -48,7 +73,7 @@ router.get('/metrics', async (req, res) => {
       .map(o => ({
         _id: o._id,
         orderNumber: o.orderNumber,
-        totalAmount: o.totalAmount,
+        totalAmount: o.finalAmount || o.totalAmount,
         orderStatus: o.orderStatus,
         paymentStatus: o.paymentStatus,
         createdAt: o.createdAt,
@@ -68,16 +93,20 @@ router.get('/metrics', async (req, res) => {
         delivered: deliveredCount,
         cancelled: cancelledCount,
         refundsPending: refundsPendingCount,
+        pendingRefunds: refundsPendingCount, // Alias for frontend compatibility
+        pendingRefundAmount,
         totalSales,
+        totalPaidSales: totalSales, // Alias for frontend compatibility
         paidOrdersCount: paidOrders.length,
         activeProducts: activeProducts.length,
         lowStockProducts: lowStockCount,
+        lowStockCount: lowStockCount, // Alias for frontend compatibility
       },
       recentOrders,
       recentAuditLogs,
     });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    return sendInternalError(res, error, 'Failed to compile dashboard metrics.');
   }
 });
 

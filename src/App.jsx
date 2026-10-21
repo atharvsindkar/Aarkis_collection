@@ -4,7 +4,7 @@ import AnnouncementBar from './components/AnnouncementBar';
 import Navbar from './components/Navbar';
 import Hero from './components/Hero';
 import BrandIntro from './components/BrandIntro';
-import CategoryShowcase from './components/CategoryShowcase';
+import NewArrivalsSection from './components/NewArrivalsSection';
 import ProductSection from './components/ProductSection';
 import EditorialSection from './components/EditorialSection';
 import BrandValuesStrip from './components/BrandValuesStrip';
@@ -12,25 +12,54 @@ import Newsletter from './components/Newsletter';
 import Footer from './components/Footer';
 import ProductDetailModal from './components/ProductDetailModal';
 import CartDrawer from './components/CartDrawer';
+import WishlistDrawer from './components/WishlistDrawer';
 import SearchModal from './components/SearchModal';
 import ComingSoonModal from './components/ComingSoonModal';
 import SizeGuideModal from './components/SizeGuideModal';
 import ToastNotification from './components/ToastNotification';
+import CustomerAccountModal from './components/CustomerAccountModal';
 import AdminApp from './admin/AdminApp';
 import './App.css';
 
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error, errorInfo) {
+    console.error("Atelier UI Error Boundary caught:", error, errorInfo);
+  }
+  render() {
+    if (this.state.hasError) {
+      return this.props.fallback || (
+        <div className="p-8 text-center text-xs text-[#8E7766]">
+          <p>An unexpected display error occurred. Please refresh the page.</p>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 export default function App() {
+  const isDedicatedAdminHost = typeof window !== 'undefined' && window.location.hostname.startsWith('admin.');
+  
   const [isAdminRoute, setIsAdminRoute] = useState(
-    window.location.pathname.startsWith('/admin')
+    isDedicatedAdminHost || (typeof window !== 'undefined' && window.location.pathname.startsWith('/admin'))
   );
 
   useEffect(() => {
     const handlePopState = () => {
-      setIsAdminRoute(window.location.pathname.startsWith('/admin'));
+      setIsAdminRoute(
+        isDedicatedAdminHost || window.location.pathname.startsWith('/admin')
+      );
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
-  }, []);
+  }, [isDedicatedAdminHost]);
 
   if (isAdminRoute) {
     return <AdminApp />;
@@ -53,8 +82,8 @@ export default function App() {
           {/* Editorial Brand Introduction */}
           <BrandIntro />
 
-          {/* Three Disciplines / Category Showcase */}
-          <CategoryShowcase />
+          {/* New Arrivals Section (Replaced Three Disciplines) */}
+          <NewArrivalsSection />
 
           {/* The Curated Edit — 3 Unique Garments with Color Variants */}
           <ProductSection />
@@ -75,9 +104,11 @@ export default function App() {
         {/* Interactive Modals & Drawers */}
         <ProductDetailModal />
         <CartDrawer />
+        <WishlistDrawer />
         <SearchModal />
         <ComingSoonModal />
         <SizeGuideModal />
+        <CustomerAccountModal />
         <ToastNotification />
       </div>
     </ShopProvider>

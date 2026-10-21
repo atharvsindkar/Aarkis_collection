@@ -5,19 +5,45 @@ import { PRODUCTS, CATEGORIES } from '../data/products';
 import { useShop } from '../context/ShopContext';
 
 export default function ProductSection() {
-  const { activeCategoryFilter, setActiveCategoryFilter, products } = useShop();
+  const { activeCategoryFilter, setActiveCategoryFilter, products, categories } = useShop();
 
-  // Filter products according to category
+  const newArrivalsCount = (products || []).filter(p => p.isNewArrival).length;
+
+  // Filter products according to category or new arrivals
   const filteredProducts = (products || []).filter((product) => {
     if (activeCategoryFilter === 'all') return true;
-    return product.categoryId === activeCategoryFilter;
+    if (activeCategoryFilter === 'new-arrivals') return Boolean(product.isNewArrival);
+    const catFilterNorm = (activeCategoryFilter || '').toLowerCase().replace(/[\s_]+/g, '-');
+    const pCatSlug = (product.categoryId || product.category || '').toLowerCase().replace(/[\s_]+/g, '-');
+    return pCatSlug === catFilterNorm || (product.category && product.category.toLowerCase() === activeCategoryFilter.toLowerCase());
   });
 
-  const filterTabs = [
-    { id: 'all', label: 'All Creations', badge: '3 Designs' },
-    { id: 'western-wear', label: 'Western Wear', badge: 'Available Now' },
-    { id: 'festive-wear', label: 'Festive Wear', badge: 'Preview' },
-    { id: 'casual-wear', label: 'Casual Wear', badge: 'Preview' },
+  // Dynamic filter tabs constructed from real categories + All + New Arrivals
+  const dynamicFilterTabs = [
+    { id: 'all', label: 'All Creations', badge: `${products?.length || 0} Designs` },
+    { id: 'new-arrivals', label: 'New Arrivals', badge: `${newArrivalsCount} New` },
+    ...(categories && categories.length > 0
+      ? categories.map(c => {
+          const catNorm = (c.slug || c.name || '').toLowerCase().replace(/[\s_]+/g, '-');
+          const categoryProducts = (products || []).filter(p => {
+            const pNorm = (p.categoryId || p.category || '').toLowerCase().replace(/[\s_]+/g, '-');
+            return pNorm === catNorm;
+          });
+          const hasAvailable = categoryProducts.some(p => p.status === 'active' && !p.isComingSoon);
+          const count = categoryProducts.length;
+          return {
+            id: c.slug || c.name,
+            label: c.name,
+            badge: hasAvailable 
+              ? `${count} ${count === 1 ? 'Design' : 'Designs'}` 
+              : 'Preview'
+          };
+        })
+      : [
+          { id: 'western-wear', label: 'Western Wear', badge: 'Available Now' },
+          { id: 'festive-wear', label: 'Festive Wear', badge: 'Available Now' },
+          { id: 'casual-wear', label: 'Casual Wear', badge: 'Preview' },
+        ])
   ];
 
   return (
@@ -48,7 +74,7 @@ export default function ProductSection() {
 
         {/* Filter Navigation Tabs */}
         <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-3 mb-12">
-          {filterTabs.map((tab) => {
+          {dynamicFilterTabs.map((tab) => {
             const isSelected = activeCategoryFilter === tab.id;
             return (
               <button

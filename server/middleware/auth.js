@@ -15,7 +15,10 @@ export const authenticate = async (req, res, next) => {
       return res.status(401).json({ success: false, message: 'Authentication required. Please log in.' });
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'aarkis_dev_secret');
+    if (!process.env.JWT_SECRET) {
+      throw new Error('Server configuration error: JWT_SECRET environment variable is missing');
+    }
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const user = await usersDB.findOne({ _id: decoded.id });
 
     if (!user || !user.isActive) {

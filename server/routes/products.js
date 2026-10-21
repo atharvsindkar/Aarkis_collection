@@ -2,6 +2,8 @@ import express from 'express';
 import { authenticate, authorize } from '../middleware/auth.js';
 import { productsDB, subscribersDB, auditLogsDB } from '../config/db.js';
 import { sendEmail } from '../services/emailService.js';
+import { syncCategoryStatus } from '../services/categorySync.js';
+import { sendInternalError } from '../middleware/errorHandler.js';
 
 const router = express.Router();
 
@@ -36,7 +38,7 @@ router.get('/', async (req, res) => {
     products.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
     res.json({ success: true, products });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    return sendInternalError(res, error, 'Failed to fetch products catalog.');
   }
 });
 
@@ -45,7 +47,7 @@ router.get('/admin/all', authenticate, authorize('owner', 'admin'), async (req, 
     const products = (await productsDB.find({})).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
     res.json({ success: true, products });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    return sendInternalError(res, error, 'Failed to fetch administrative product list.');
   }
 });
 
@@ -61,7 +63,7 @@ router.get('/:slug', async (req, res) => {
 
     res.json({ success: true, product });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    return sendInternalError(res, error, 'Failed to load product details.');
   }
 });
 
@@ -69,6 +71,7 @@ router.post('/', authenticate, authorize('owner', 'admin'), async (req, res) => 
   try {
     const {
       name,
+      shortName,
       category,
       categoryId,
       subCategory,
@@ -77,6 +80,7 @@ router.post('/', authenticate, authorize('owner', 'admin'), async (req, res) => 
       details,
       fabric,
       care,
+      price,
       sellingPrice,
       mrp,
       badge,
@@ -85,6 +89,7 @@ router.post('/', authenticate, authorize('owner', 'admin'), async (req, res) => 
       isComingSoon,
       isNewArrival,
       sendAnnouncement,
+      sendSubscriberEmail,
       status,
       seoTitle,
       seoDescription,
@@ -102,12 +107,14 @@ router.post('/', authenticate, authorize('owner', 'admin'), async (req, res) => 
       return res.status(400).json({ success: false, message: 'Product description is required' });
     }
 
-    const price = Number(sellingPrice);
-    if (isNaN(price) || price <= 0) {
+    // Support both `price` and `sellingPrice`
+    const rawPrice = sellingPrice !== undefined ? sellingPrice : price;
+    const finalPrice = Number(rawPrice);
+    if (rawPrice === undefined || isNaN(finalPrice) || finalPrice <= 0) {
       return res.status(400).json({ success: false, message: 'Selling price must be a positive number' });
     }
 
-    if (mrp && Number(mrp) < price) {
+    if (mrp && Number(mrp) < finalPrice) {
       return res.status(400).json({ success: false, message: 'MRP/Comparison price cannot be lower than the selling price' });
     }
 
@@ -126,13 +133,13 @@ router.post('/', authenticate, authorize('owner', 'admin'), async (req, res) => 
     const product = await productsDB.insert({
       name: name.trim(),
       slug: generatedSlug,
-      shortName: name.length > 35 ? name.slice(0, 32) + '...' : name,
+      shortName: (shortName && shortName.trim()) || (name.length > 35 ? name.slice(0, 32) + '...' : name),
       category,
       categoryId: categoryId || category.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
       subCategory: subCategory || '',
-      price,
+      price: finalPrice,
       mrp: mrp ? Number(mrp) : null,
-      priceDisplay: `₹${price.toLocaleString()}`,
+      priceDisplay: `₹${finalPrice.toLocaleString()}`,
       badge: badge || (newArrivalFlag ? 'New Arrival' : comingSoonFlag ? 'Coming Soon' : ''),
       description: description.trim(),
       highlights: highlights || details || [],
@@ -174,9 +181,12 @@ router.post('/', authenticate, authorize('owner', 'admin'), async (req, res) => 
       }
     }
 
+    await syncCategoryStatus(product.categoryId);
+    await syncCategoryStatus(product.category);
+
     res.status(201).json({ success: true, message: 'Product created and published successfully', product });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    return sendInternalError(res, error, 'Failed to create product.');
   }
 });
 
@@ -189,6 +199,7 @@ router.put('/:id', authenticate, authorize('owner', 'admin'), async (req, res) =
 
     const {
       name,
+      shortName,
       category,
       categoryId,
       subCategory,
@@ -197,6 +208,7 @@ router.put('/:id', authenticate, authorize('owner', 'admin'), async (req, res) =
       details,
       fabric,
       care,
+      price,
       sellingPrice,
       mrp,
       badge,
@@ -209,6 +221,7 @@ router.put('/:id', authenticate, authorize('owner', 'admin'), async (req, res) =
 
     const update = { updatedAt: new Date() };
     if (name) update.name = name;
+    if (shortName !== undefined) update.shortName = shortName;
     if (category) update.category = category;
     if (categoryId) update.categoryId = categoryId;
     if (subCategory !== undefined) update.subCategory = subCategory;
@@ -217,8 +230,10 @@ router.put('/:id', authenticate, authorize('owner', 'admin'), async (req, res) =
     if (details) update.details = details;
     if (fabric !== undefined) update.fabric = fabric;
     if (care !== undefined) update.care = care;
-    if (sellingPrice) {
-      update.price = Number(sellingPrice);
+    
+    const rawPrice = sellingPrice !== undefined ? sellingPrice : price;
+    if (rawPrice !== undefined) {
+      update.price = Number(rawPrice);
       update.priceDisplay = `₹${update.price.toLocaleString()}`;
     }
     if (mrp !== undefined) update.mrp = mrp ? Number(mrp) : null;
@@ -231,9 +246,39 @@ router.put('/:id', authenticate, authorize('owner', 'admin'), async (req, res) =
 
     await productsDB.update({ _id: req.params.id }, { $set: update });
 
+    const updatedProduct = await productsDB.findOne({ _id: req.params.id });
+    if (updatedProduct) {
+      await syncCategoryStatus(updatedProduct.categoryId);
+      await syncCategoryStatus(updatedProduct.category);
+    }
+
     res.json({ success: true, message: 'Product updated successfully' });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    return sendInternalError(res, error, 'Failed to update product details.');
+  }
+});
+
+// Toggle Enable/Disable product
+router.patch('/:id/toggle-status', authenticate, authorize('owner', 'admin'), async (req, res) => {
+  try {
+    const product = await productsDB.findOne({ _id: req.params.id });
+    if (!product) {
+      return res.status(404).json({ success: false, message: 'Product not found' });
+    }
+
+    const newStatus = (product.status === 'inactive' || product.status === 'archived') ? 'active' : 'inactive';
+    await productsDB.update({ _id: req.params.id }, { $set: { status: newStatus, updatedAt: new Date() } });
+
+    await syncCategoryStatus(product.categoryId);
+    await syncCategoryStatus(product.category);
+
+    res.json({
+      success: true,
+      message: `Garment ${newStatus === 'active' ? 'enabled (live on storefront)' : 'disabled (hidden from storefront)'}`,
+      status: newStatus
+    });
+  } catch (error) {
+    return sendInternalError(res, error, 'Failed to toggle product status.');
   }
 });
 
@@ -244,11 +289,15 @@ router.delete('/:id', authenticate, authorize('owner', 'admin'), async (req, res
       return res.status(404).json({ success: false, message: 'Product not found' });
     }
 
-    await productsDB.update({ _id: req.params.id }, { $set: { status: 'archived', updatedAt: new Date() } });
+    // Permanently remove from database
+    await productsDB.remove({ _id: req.params.id }, {});
 
-    res.json({ success: true, message: 'Product archived successfully' });
+    await syncCategoryStatus(product.categoryId);
+    await syncCategoryStatus(product.category);
+
+    res.json({ success: true, message: 'Product deleted permanently from everywhere' });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    return sendInternalError(res, error, 'Failed to delete product.');
   }
 });
 

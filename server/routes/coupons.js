@@ -2,8 +2,36 @@ import express from 'express';
 import { authenticate, authorize } from '../middleware/auth.js';
 import { couponsDB, auditLogsDB } from '../config/db.js';
 import { couponLimiter } from '../middleware/rateLimiters.js';
+import { sendInternalError } from '../middleware/errorHandler.js';
 
 const router = express.Router();
+
+// Public endpoint for announcement bar & customer vouchers
+router.get('/public', async (req, res) => {
+  try {
+    const allCoupons = await couponsDB.find({ isActive: true });
+    const now = new Date();
+    const active = allCoupons.filter(c => {
+      if (c.startDate && new Date(c.startDate) > now) return false;
+      if (c.expiryDate && new Date(c.expiryDate) < now) return false;
+      return true;
+    });
+
+    res.json({
+      success: true,
+      coupons: active.map(c => ({
+        code: c.code,
+        discountType: c.discountType,
+        discountValue: c.discountValue,
+        minOrderAmount: c.minOrderAmount,
+        maxDiscountAmount: c.maxDiscountAmount,
+        description: c.description
+      }))
+    });
+  } catch (error) {
+    return sendInternalError(res, error, 'Failed to retrieve public promotions.');
+  }
+});
 
 router.post('/validate', couponLimiter, async (req, res) => {
   try {
@@ -31,7 +59,12 @@ router.post('/validate', couponLimiter, async (req, res) => {
       return res.status(400).json({ success: false, message: `Minimum order amount of ₹${coupon.minOrderAmount} required` });
     }
 
-    if (coupon.usageLimitTotal && coupon.usedCount >= coupon.usageLimitTotal) {
+    const limitTotal = coupon.usageLimitTotal !== undefined && coupon.usageLimitTotal !== null 
+      ? coupon.usageLimitTotal 
+      : coupon.usageLimit;
+    const currentCount = coupon.usedCount !== undefined ? coupon.usedCount : (coupon.usageCount || 0);
+
+    if (limitTotal && currentCount >= limitTotal) {
       return res.status(400).json({ success: false, message: 'Coupon usage limit has been reached' });
     }
 
@@ -63,7 +96,7 @@ router.post('/validate', couponLimiter, async (req, res) => {
       message: 'Coupon applied successfully',
     });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    return sendInternalError(res, error, 'Coupon validation encountered an error.');
   }
 });
 
@@ -72,7 +105,16 @@ router.get('/', authenticate, authorize('owner', 'admin'), async (req, res) => {
     const coupons = (await couponsDB.find({})).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
     res.json({ success: true, coupons });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    return sendInternalError(res, error, 'Failed to fetch coupons.');
+  }
+});
+
+router.get('/admin/all', authenticate, authorize('owner', 'admin'), async (req, res) => {
+  try {
+    const coupons = (await couponsDB.find({})).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    res.json({ success: true, coupons });
+  } catch (error) {
+    return sendInternalError(res, error, 'Failed to fetch administrative coupons.');
   }
 });
 
@@ -86,13 +128,14 @@ router.post('/', authenticate, authorize('owner', 'admin'), async (req, res) => 
       maxDiscountAmount,
       startDate,
       expiryDate,
+      usageLimit,
       usageLimitTotal,
       perCustomerLimit,
       description,
     } = req.body;
 
-    if (!code || !discountValue || !expiryDate) {
-      return res.status(400).json({ success: false, message: 'Code, discount value, and expiry date are required' });
+    if (!code || discountValue === undefined || discountValue === null || discountValue === '') {
+      return res.status(400).json({ success: false, message: 'Coupon code and discount value are required' });
     }
 
     const normalizedCode = code.toUpperCase().trim();
@@ -101,16 +144,25 @@ router.post('/', authenticate, authorize('owner', 'admin'), async (req, res) => 
       return res.status(400).json({ success: false, message: 'Coupon code already exists' });
     }
 
+    // Default expiry to 1 year from now if not supplied
+    const oneYearLater = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000);
+    const resolvedExpiry = expiryDate ? new Date(expiryDate) : oneYearLater;
+    const resolvedUsageLimit = usageLimitTotal !== undefined && usageLimitTotal !== null
+      ? Number(usageLimitTotal)
+      : (usageLimit !== undefined && usageLimit !== null && usageLimit !== '' ? Number(usageLimit) : null);
+
     const coupon = await couponsDB.insert({
       code: normalizedCode,
-      discountType: discountType || 'fixed',
+      discountType: discountType || 'percentage',
       discountValue: Number(discountValue),
       minOrderAmount: Number(minOrderAmount) || 0,
       maxDiscountAmount: maxDiscountAmount ? Number(maxDiscountAmount) : null,
       startDate: startDate ? new Date(startDate) : new Date(),
-      expiryDate: new Date(expiryDate),
-      usageLimitTotal: usageLimitTotal ? Number(usageLimitTotal) : null,
+      expiryDate: resolvedExpiry,
+      usageLimitTotal: resolvedUsageLimit,
+      usageLimit: resolvedUsageLimit,
       usedCount: 0,
+      usageCount: 0,
       perCustomerLimit: Number(perCustomerLimit) || 1,
       usedByCustomers: [],
       description: description || '',
@@ -120,7 +172,21 @@ router.post('/', authenticate, authorize('owner', 'admin'), async (req, res) => 
 
     res.status(201).json({ success: true, message: 'Coupon created successfully', coupon });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    return sendInternalError(res, error, 'Failed to create coupon.');
+  }
+});
+
+router.delete('/:id', authenticate, authorize('owner', 'admin'), async (req, res) => {
+  try {
+    const coupon = await couponsDB.findOne({ _id: req.params.id });
+    if (!coupon) {
+      return res.status(404).json({ success: false, message: 'Coupon not found' });
+    }
+
+    await couponsDB.remove({ _id: req.params.id });
+    res.json({ success: true, message: 'Coupon deleted successfully' });
+  } catch (error) {
+    return sendInternalError(res, error, 'Failed to delete coupon.');
   }
 });
 
@@ -134,7 +200,7 @@ router.patch('/:id/toggle', authenticate, authorize('owner', 'admin'), async (re
     await couponsDB.update({ _id: req.params.id }, { $set: { isActive: !coupon.isActive } });
     res.json({ success: true, message: `Coupon is now ${!coupon.isActive ? 'active' : 'inactive'}` });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    return sendInternalError(res, error, 'Failed to toggle coupon status.');
   }
 });
 

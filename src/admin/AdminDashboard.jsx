@@ -1,12 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { 
   ShoppingBag, Clock, Truck, CheckCircle2, XCircle, 
   RotateCcw, DollarSign, AlertTriangle, Layers, ArrowUpRight, Activity 
 } from 'lucide-react';
 import { useAdminAuth } from './AdminAuthContext';
+import { useAdminTheme } from './AdminThemeContext';
 
 export default function AdminDashboard({ onNavigate }) {
   const { authFetch } = useAdminAuth();
+  const { isDark } = useAdminTheme();
   const [metrics, setMetrics] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -28,7 +30,7 @@ export default function AdminDashboard({ onNavigate }) {
     }
   };
 
-  useEffect(() => {
+  React.useEffect(() => {
     fetchMetrics();
   }, []);
 
@@ -36,7 +38,9 @@ export default function AdminDashboard({ onNavigate }) {
     return (
       <div className="py-20 text-center">
         <div className="w-8 h-8 border-2 border-[#B49A62] border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-        <p className="text-xs uppercase tracking-wider text-[#A69483]">Querying Live Atelier Database...</p>
+        <p className={`text-xs uppercase tracking-wider ${isDark ? 'text-[#A69483]' : 'text-[#6F5847]'}`}>
+          Querying Live Atelier Database...
+        </p>
       </div>
     );
   }
@@ -51,85 +55,111 @@ export default function AdminDashboard({ onNavigate }) {
 
   const cards = [
     {
+      id: "today",
       title: "Today's Orders",
-      value: metrics?.todayOrders || 0,
+      value: metrics?.todayOrders ?? 0,
       icon: ShoppingBag,
       sub: "Placed since midnight",
-      color: "text-amber-300"
+      color: "text-amber-500",
+      action: () => onNavigate?.('orders', 'all')
     },
     {
+      id: "awaiting",
       title: "Awaiting Action",
-      value: metrics?.awaitingAction || 0,
+      value: metrics?.awaitingAction ?? 0,
       icon: Clock,
       sub: "Need confirmation/dispatch",
-      color: "text-yellow-400"
+      color: "text-yellow-500",
+      action: () => onNavigate?.('orders', 'awaiting')
     },
     {
+      id: "inTransit",
       title: "In Transit",
-      value: metrics?.inTransit || 0,
+      value: metrics?.inTransit ?? 0,
       icon: Truck,
       sub: "With courier partner",
-      color: "text-sky-400"
+      color: "text-sky-500",
+      action: () => onNavigate?.('orders', 'shipped')
     },
     {
+      id: "delivered",
       title: "Delivered",
-      value: metrics?.delivered || 0,
+      value: metrics?.delivered ?? 0,
       icon: CheckCircle2,
       sub: "Successfully completed",
-      color: "text-emerald-400"
+      color: "text-emerald-500",
+      action: () => onNavigate?.('orders', 'delivered')
     },
     {
+      id: "cancelled",
       title: "Cancelled",
-      value: metrics?.cancelled || 0,
+      value: metrics?.cancelled ?? 0,
       icon: XCircle,
       sub: "Voided or buyer cancelled",
-      color: "text-rose-400"
+      color: "text-rose-500",
+      action: () => onNavigate?.('orders', 'cancelled')
     },
     {
+      id: "refundsPending",
       title: "Pending Refunds",
-      value: metrics?.pendingRefunds || 0,
+      value: `₹${(metrics?.pendingRefundAmount || 0).toLocaleString()}`,
       icon: RotateCcw,
-      sub: "Awaiting financial return",
-      color: "text-purple-400"
+      sub: `${metrics?.pendingRefunds ?? metrics?.refundsPending ?? 0} order(s) awaiting return`,
+      color: "text-purple-500",
+      action: () => onNavigate?.('orders', 'refund_pending')
     },
     {
+      id: "totalSales",
       title: "Total Sales (Real Paid)",
-      value: `₹${(metrics?.totalPaidSales || 0).toLocaleString()}`,
+      value: `₹${(metrics?.totalPaidSales ?? metrics?.totalSales ?? 0).toLocaleString()}`,
       icon: DollarSign,
       sub: "Excludes cancelled/unpaid",
-      color: "text-emerald-300"
+      color: "text-emerald-500",
+      action: () => onNavigate?.('orders', 'paid')
     },
     {
+      id: "lowStock",
       title: "Low Stock Items",
-      value: metrics?.lowStockCount || 0,
+      value: metrics?.lowStockCount ?? metrics?.lowStockProducts ?? 0,
       icon: AlertTriangle,
       sub: "Variants ≤ 3 pieces",
-      color: "text-amber-400"
+      color: "text-amber-500",
+      action: () => onNavigate?.('products')
     },
     {
+      id: "activeProducts",
       title: "Active Products",
-      value: metrics?.activeProducts || 0,
+      value: metrics?.activeProducts ?? 0,
       icon: Layers,
       sub: "Published on storefront",
-      color: "text-[#B49A62]"
+      color: "text-[#B49A62]",
+      action: () => onNavigate?.('products')
     }
   ];
 
   return (
     <div className="space-y-8 animate-fade-in">
       {/* Title Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-6 border-b border-[#342922]">
+      <div className={`flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-6 border-b ${
+        isDark ? 'border-[#342922]' : 'border-[#E8E0D2]'
+      }`}>
         <div>
           <span className="text-[10px] uppercase tracking-[0.25em] text-[#B49A62] font-semibold">
             Live Telemetry
           </span>
-          <h2 className="font-serif text-2xl sm:text-3xl text-[#FAF7F2] font-normal">
+          <h2 className={`font-serif text-2xl sm:text-3xl font-normal ${
+            isDark ? 'text-[#FAF7F2]' : 'text-[#281D18]'
+          }`}>
             Atelier Executive Overview
           </h2>
         </div>
         <button
           onClick={fetchMetrics}
-          className="self-start sm:self-auto px-4 py-2 bg-[#2E241E] hover:bg-[#3E322A] text-xs uppercase tracking-wider text-[#C8B8A6] rounded-xs border border-[#4A3B31] transition-colors"
+          className={`self-start sm:self-auto px-4 py-2 text-xs uppercase tracking-wider rounded-xs border transition-colors ${
+            isDark 
+              ? 'bg-[#2E241E] hover:bg-[#3E322A] text-[#C8B8A6] border-[#4A3B31]' 
+              : 'bg-white hover:bg-[#FAF7F2] text-[#44332A] border-[#D8C2A0]'
+          }`}
         >
           Refresh Data
         </button>
@@ -142,18 +172,35 @@ export default function AdminDashboard({ onNavigate }) {
           return (
             <div
               key={idx}
-              className="p-5 bg-[#221B17] border border-[#3E322A] rounded-xs shadow-md flex items-start justify-between group hover:border-[#B49A62]/50 transition-colors"
+              onClick={card.action}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => { if (e.key === 'Enter') card.action?.(); }}
+              className={`p-5 border rounded-xs shadow-md flex items-start justify-between group transition-all duration-200 cursor-pointer ${
+                isDark 
+                  ? 'bg-[#221B17] border-[#3E322A] hover:border-[#B49A62] hover:bg-[#28201B]' 
+                  : 'bg-white border-[#E8E0D2] hover:border-[#B49A62] hover:shadow-lg'
+              }`}
             >
               <div>
-                <p className="text-[11px] uppercase tracking-wider text-[#A69483] mb-1">
-                  {card.title}
+                <p className={`text-[11px] uppercase tracking-wider mb-1 flex items-center gap-1.5 ${
+                  isDark ? 'text-[#A69483] group-hover:text-[#FAF7F2]' : 'text-[#6F5847] group-hover:text-[#281D18]'
+                }`}>
+                  <span>{card.title}</span>
+                  <ArrowUpRight size={12} className="opacity-0 group-hover:opacity-100 transition-opacity text-[#B49A62]" />
                 </p>
-                <p className="font-serif text-2xl sm:text-3xl font-medium text-[#FAF7F2]">
+                <p className={`font-serif text-2xl sm:text-3xl font-medium ${
+                  isDark ? 'text-[#FAF7F2]' : 'text-[#281D18]'
+                }`}>
                   {card.value}
                 </p>
-                <p className="text-[10px] text-[#7F6B5C] mt-1.5">{card.sub}</p>
+                <p className={`text-[10px] mt-1.5 ${isDark ? 'text-[#7F6B5C]' : 'text-[#8E7766]'}`}>
+                  {card.sub}
+                </p>
               </div>
-              <div className="p-2.5 bg-[#181311] border border-[#342922] rounded-xs">
+              <div className={`p-2.5 border rounded-xs transition-transform group-hover:scale-105 ${
+                isDark ? 'bg-[#181311] border-[#342922]' : 'bg-[#FAF7F2] border-[#E8E0D2]'
+              }`}>
                 <Icon size={18} className={card.color} />
               </div>
             </div>
@@ -162,15 +209,17 @@ export default function AdminDashboard({ onNavigate }) {
       </div>
 
       {/* Recent Activity / Audit Log Strip */}
-      <div className="bg-[#221B17] border border-[#3E322A] rounded-xs p-6 shadow-md">
+      <div className={`border rounded-xs p-6 shadow-md ${
+        isDark ? 'bg-[#221B17] border-[#3E322A]' : 'bg-white border-[#E8E0D2]'
+      }`}>
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center space-x-2">
             <Activity size={16} className="text-[#B49A62]" />
-            <h3 className="font-serif text-lg text-[#FAF7F2] font-medium">
+            <h3 className={`font-serif text-lg font-medium ${isDark ? 'text-[#FAF7F2]' : 'text-[#281D18]'}`}>
               Live Governance & Audit Trail
             </h3>
           </div>
-          <span className="text-[10px] uppercase tracking-wider text-[#7F6B5C]">
+          <span className={`text-[10px] uppercase tracking-wider ${isDark ? 'text-[#7F6B5C]' : 'text-[#8E7766]'}`}>
             Latest Server Events
           </span>
         </div>
@@ -180,15 +229,19 @@ export default function AdminDashboard({ onNavigate }) {
             No audit events recorded yet.
           </p>
         ) : (
-          <div className="divide-y divide-[#2E241E] text-xs">
+          <div className={`divide-y text-xs ${isDark ? 'divide-[#2E241E]' : 'divide-[#EDE5D8]'}`}>
             {metrics?.recentAuditLogs?.map((log) => (
               <div key={log._id || log.id} className="py-2.5 flex items-center justify-between">
                 <div>
-                  <span className="font-medium text-[#FAF7F2] mr-2">[{log.action}]</span>
-                  <span className="text-[#A69483]">{log.details || log.targetType}</span>
+                  <span className={`font-medium mr-2 ${isDark ? 'text-[#FAF7F2]' : 'text-[#281D18]'}`}>
+                    [{log.action}]
+                  </span>
+                  <span className={isDark ? 'text-[#A69483]' : 'text-[#6F5847]'}>
+                    {log.details ? (typeof log.details === 'string' ? log.details : JSON.stringify(log.details)) : log.targetType}
+                  </span>
                 </div>
-                <span className="text-[10px] text-[#7F6B5C]">
-                  {new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                <span className={`text-[10px] ${isDark ? 'text-[#7F6B5C]' : 'text-[#8E7766]'}`}>
+                  {new Date(log.timestamp || log.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </span>
               </div>
             ))}

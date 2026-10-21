@@ -1,5 +1,6 @@
 import React from 'react';
 import { AdminAuthProvider, useAdminAuth } from './AdminAuthContext';
+import { AdminThemeProvider } from './AdminThemeContext';
 import AdminLogin from './AdminLogin';
 import AdminPortal from './AdminPortal';
 import { Loader2 } from 'lucide-react';
@@ -24,7 +25,9 @@ function AdminContent() {
 export default function AdminApp() {
   return (
     <AdminAuthProvider>
-      <AdminContent />
+      <AdminThemeProvider>
+        <AdminContent />
+      </AdminThemeProvider>
     </AdminAuthProvider>
   );
 }

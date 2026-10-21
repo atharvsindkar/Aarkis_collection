@@ -1,22 +1,24 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  FolderPlus, Trash2, Edit2, ChevronRight, Layers, 
-  AlertCircle, Check, Loader2, Plus 
+  FolderPlus, Trash2, Edit2, Layers, 
+  AlertCircle, Check, Loader2, Plus, X 
 } from 'lucide-react';
 import { useAdminAuth } from './AdminAuthContext';
+import { useAdminTheme } from './AdminThemeContext';
 
 export default function AdminCategories() {
   const { authFetch } = useAdminAuth();
+  const { isDark } = useAdminTheme();
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  // New Category Form
+  // Mode: null | 'create' | 'edit'
+  const [editingCategoryId, setEditingCategoryId] = useState(null);
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
   const [description, setDescription] = useState('');
-  const [subCategoriesInput, setSubCategoriesInput] = useState(''); // comma-separated
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const fetchCategories = async () => {
@@ -38,43 +40,62 @@ export default function AdminCategories() {
     fetchCategories();
   }, []);
 
-  const handleCreateCategory = async (e) => {
+  const handleStartEdit = (cat) => {
+    setEditingCategoryId(cat._id);
+    setName(cat.name || '');
+    setSlug(cat.slug || '');
+    setDescription(cat.description || '');
+    setError('');
+    setSuccess('');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleCancelEdit = () => {
+    setEditingCategoryId(null);
+    setName('');
+    setSlug('');
+    setDescription('');
+    setError('');
+  };
+
+  const handleSubmitCategory = async (e) => {
     e.preventDefault();
-    if (!name.trim()) return;
+    if (!name.trim()) {
+      setError('Category name is required');
+      return;
+    }
 
     setIsSubmitting(true);
     setError('');
     setSuccess('');
 
-    const subCats = subCategoriesInput
-      .split(',')
-      .map(s => s.trim())
-      .filter(Boolean);
-
     try {
-      const res = await authFetch('/api/categories', {
-        method: 'POST',
+      const url = editingCategoryId ? `/api/categories/${editingCategoryId}` : '/api/categories';
+      const method = editingCategoryId ? 'PUT' : 'POST';
+      const autoSlug = (slug || name).trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+
+      const res = await authFetch(url, {
+        method,
         body: JSON.stringify({
           name: name.trim(),
-          slug: slug.trim() || undefined,
-          description: description.trim(),
-          subCategories: subCats
+          slug: autoSlug,
+          description: description.trim()
         })
       });
       const data = await res.json();
 
       if (res.ok && data.success) {
-        setSuccess(`Category "${name}" created successfully.`);
-        setName('');
-        setSlug('');
-        setDescription('');
-        setSubCategoriesInput('');
+        setSuccess(editingCategoryId 
+          ? `Category "${name}" updated successfully!` 
+          : `Category "${name}" created successfully!`
+        );
+        handleCancelEdit();
         fetchCategories();
       } else {
-        setError(data.message || 'Failed to create category');
+        setError(data.message || 'Operation failed');
       }
     } catch (err) {
-      setError('Network error creating category');
+      setError('Network error saving category');
     } finally {
       setIsSubmitting(false);
     }
@@ -102,15 +123,17 @@ export default function AdminCategories() {
   return (
     <div className="space-y-8 animate-fade-in">
       {/* Header */}
-      <div className="pb-6 border-b border-[#342922]">
+      <div className={`pb-6 border-b ${isDark ? 'border-[#342922]' : 'border-[#E8E0D2]'}`}>
         <span className="text-[10px] uppercase tracking-[0.25em] text-[#B49A62] font-semibold">
-          Taxonomy & Hierarchy
+          Taxonomy
         </span>
-        <h2 className="font-serif text-2xl sm:text-3xl text-[#FAF7F2] font-normal">
-          Categories & Subcategory Levels
+        <h2 className={`font-serif text-2xl sm:text-3xl font-normal ${
+          isDark ? 'text-[#FAF7F2]' : 'text-[#281D18]'
+        }`}>
+          Categories Management
         </h2>
-        <p className="text-xs text-[#A69483] mt-1 font-light">
-          Structure multi-level categories (up to 4 levels) with product deletion safety locks.
+        <p className={`text-xs mt-1 font-light ${isDark ? 'text-[#A69483]' : 'text-[#6F5847]'}`}>
+          Create and organize foundational parent categories. Any newly added category automatically appears on the storefront.
         </p>
       </div>
 
@@ -129,93 +152,102 @@ export default function AdminCategories() {
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Create Category Form */}
-        <div className="bg-[#221B17] border border-[#3E322A] p-6 rounded-xs shadow-lg space-y-4 h-fit">
-          <h3 className="font-serif text-lg text-[#FAF7F2] font-medium flex items-center space-x-2">
-            <FolderPlus size={16} className="text-[#B49A62]" />
-            <span>Add New Category</span>
-          </h3>
+        {/* Create / Edit Category Form */}
+        <div className={`border p-6 rounded-xs shadow-lg space-y-4 h-fit ${
+          isDark ? 'bg-[#221B17] border-[#3E322A]' : 'bg-white border-[#E8E0D2]'
+        }`}>
+          <div className="flex items-center justify-between">
+            <h3 className={`font-serif text-lg font-medium flex items-center space-x-2 ${
+              isDark ? 'text-[#FAF7F2]' : 'text-[#281D18]'
+            }`}>
+              {editingCategoryId ? (
+                <>
+                  <Edit2 size={16} className="text-[#B49A62]" />
+                  <span>Edit Category</span>
+                </>
+              ) : (
+                <>
+                  <FolderPlus size={16} className="text-[#B49A62]" />
+                  <span>Add New Category</span>
+                </>
+              )}
+            </h3>
+            {editingCategoryId && (
+              <button
+                type="button"
+                onClick={handleCancelEdit}
+                className="text-xs text-[#8E7766] hover:text-[#B49A62] flex items-center space-x-1"
+              >
+                <X size={14} />
+                <span>Cancel</span>
+              </button>
+            )}
+          </div>
 
-          <form onSubmit={handleCreateCategory} className="space-y-4 text-xs">
+          <form onSubmit={handleSubmitCategory} className="space-y-4 text-xs">
             <div>
-              <label className="block text-[11px] text-[#A69483] mb-1">Category Name *</label>
+              <label className={`block text-[11px] mb-1 font-medium ${isDark ? 'text-[#A69483]' : 'text-[#6F5847]'}`}>
+                Category Name *
+              </label>
               <input
                 type="text"
                 required
                 value={name}
-                onChange={(e) => {
-                  setName(e.target.value);
-                  if (!slug) setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9]+/g, '-'));
-                }}
+                onChange={(e) => setName(e.target.value)}
                 placeholder="e.g. Evening Pret"
-                className="w-full px-3 py-2 bg-[#181311] border border-[#3E322A] text-white rounded-xs focus:outline-none focus:border-[#B49A62]"
+                className={`w-full px-3 py-2 border rounded-xs focus:outline-none focus:border-[#B49A62] ${
+                  isDark ? 'bg-[#181311] border-[#3E322A] text-white' : 'bg-[#FAF7F2] border-[#D8C2A0] text-black'
+                }`}
               />
             </div>
 
             <div>
-              <label className="block text-[11px] text-[#A69483] mb-1">Slug URL Identifier</label>
-              <input
-                type="text"
-                value={slug}
-                onChange={(e) => setSlug(e.target.value)}
-                placeholder="e.g. evening-pret"
-                className="w-full px-3 py-2 bg-[#181311] border border-[#3E322A] font-mono text-[11px] text-[#C8B8A6] rounded-xs focus:outline-none focus:border-[#B49A62]"
-              />
-            </div>
-
-            <div>
-              <label className="block text-[11px] text-[#A69483] mb-1">Description</label>
-              <textarea
-                rows={2}
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="Editorial styling notes for this capsule collection"
-                className="w-full px-3 py-2 bg-[#181311] border border-[#3E322A] text-white rounded-xs focus:outline-none focus:border-[#B49A62]"
-              />
-            </div>
-
-            <div>
-              <label className="block text-[11px] text-[#A69483] mb-1">
-                Subcategories (Comma separated, up to 4 levels)
+              <label className={`block text-[11px] mb-1 font-medium ${isDark ? 'text-[#A69483]' : 'text-[#6F5847]'}`}>
+                Description
               </label>
               <textarea
                 rows={3}
-                value={subCategoriesInput}
-                onChange={(e) => setSubCategoriesInput(e.target.value)}
-                placeholder="e.g. Silk Tunics, Embroidered Capes, Tailored Corsets"
-                className="w-full px-3 py-2 bg-[#181311] border border-[#3E322A] text-white rounded-xs focus:outline-none focus:border-[#B49A62]"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Editorial styling notes for this collection"
+                className={`w-full px-3 py-2 border rounded-xs focus:outline-none focus:border-[#B49A62] ${
+                  isDark ? 'bg-[#181311] border-[#3E322A] text-white' : 'bg-[#FAF7F2] border-[#D8C2A0] text-black'
+                }`}
               />
-              <p className="text-[10px] text-[#7F6B5C] mt-1">
-                Subcategories enable hierarchical nesting in the catalog.
-              </p>
             </div>
 
             <button
               type="submit"
               disabled={isSubmitting}
-              className="w-full py-2.5 bg-[#B49A62] hover:bg-[#A38853] text-[#181311] font-semibold uppercase tracking-wider text-xs rounded-xs flex items-center justify-center space-x-1"
+              className="w-full py-2.5 bg-[#B49A62] hover:bg-[#A38853] text-[#181311] font-semibold uppercase tracking-wider text-xs rounded-xs flex items-center justify-center space-x-1 shadow-sm transition-colors"
             >
               {isSubmitting ? (
                 <Loader2 size={14} className="animate-spin" />
               ) : (
                 <>
-                  <Plus size={14} />
-                  <span>Create Category</span>
+                  {editingCategoryId ? <Edit2 size={14} /> : <Plus size={14} />}
+                  <span>{editingCategoryId ? 'Save Category Changes' : 'Create Category'}</span>
                 </>
               )}
             </button>
           </form>
         </div>
 
-        {/* Existing Categories Hierarchy List */}
-        <div className="lg:col-span-2 bg-[#221B17] border border-[#3E322A] p-6 rounded-xs shadow-lg space-y-4">
-          <div className="flex items-center justify-between pb-3 border-b border-[#342922]">
-            <h3 className="font-serif text-lg text-[#FAF7F2] font-medium flex items-center space-x-2">
+        {/* Existing Categories List */}
+        <div className={`lg:col-span-2 border p-6 rounded-xs shadow-lg space-y-4 ${
+          isDark ? 'bg-[#221B17] border-[#3E322A]' : 'bg-white border-[#E8E0D2]'
+        }`}>
+          <div className={`flex items-center justify-between pb-3 border-b ${
+            isDark ? 'border-[#342922]' : 'border-[#E8E0D2]'
+          }`}>
+            <h3 className={`font-serif text-lg font-medium flex items-center space-x-2 ${
+              isDark ? 'text-[#FAF7F2]' : 'text-[#281D18]'
+            }`}>
               <Layers size={16} className="text-[#B49A62]" />
-              <span>Catalog Taxonomy ({categories.length})</span>
+              <span>Catalog Categories ({categories.length})</span>
             </h3>
-            <span className="text-[10px] uppercase tracking-wider text-[#7F6B5C]">
-              Safety Block: Cannot delete if products linked
+            <span className={`text-[10px] uppercase tracking-wider ${isDark ? 'text-[#7F6B5C]' : 'text-[#8E7766]'}`}>
+              Safety Lock: Cannot delete if products linked
             </span>
           </div>
 
@@ -225,45 +257,46 @@ export default function AdminCategories() {
               Loading categories...
             </div>
           ) : (
-            <div className="divide-y divide-[#2E241E]">
+            <div className={`divide-y ${isDark ? 'divide-[#2E241E]' : 'divide-[#EDE5D8]'}`}>
               {categories.map((cat) => (
                 <div key={cat._id} className="py-4 space-y-2">
                   <div className="flex items-center justify-between">
                     <div>
-                      <span className="font-serif text-base text-[#FAF7F2] font-medium mr-2">
+                      <span className={`font-serif text-base font-medium mr-2 ${
+                        isDark ? 'text-[#FAF7F2]' : 'text-[#281D18]'
+                      }`}>
                         {cat.name}
                       </span>
-                      <span className="font-mono text-[10px] text-[#A69483] bg-[#181311] px-2 py-0.5 rounded-xs border border-[#342922]">
+                      <span className={`font-mono text-[10px] px-2 py-0.5 rounded-xs border ${
+                        isDark ? 'text-[#A69483] bg-[#181311] border-[#342922]' : 'text-[#6F5847] bg-[#FAF7F2] border-[#E0D7C9]'
+                      }`}>
                         {cat.slug}
                       </span>
                     </div>
 
-                    <button
-                      onClick={() => handleDeleteCategory(cat._id, cat.name)}
-                      className="text-[#8E7766] hover:text-rose-400 p-1.5 transition-colors"
-                      title="Delete category"
-                    >
-                      <Trash2 size={14} />
-                    </button>
+                    <div className="flex items-center space-x-2">
+                      <button
+                        onClick={() => handleStartEdit(cat)}
+                        className="p-1.5 text-[#B49A62] hover:text-amber-500 hover:bg-[#B49A62]/10 rounded-xs transition-colors flex items-center space-x-1"
+                        title="Edit category"
+                      >
+                        <Edit2 size={13} />
+                        <span className="text-[11px] uppercase tracking-wider font-medium">Edit</span>
+                      </button>
+                      <button
+                        onClick={() => handleDeleteCategory(cat._id, cat.name)}
+                        className="text-[#8E7766] hover:text-rose-500 p-1.5 transition-colors"
+                        title="Delete category"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
                   </div>
 
                   {cat.description && (
-                    <p className="text-xs text-[#8E7766] font-light">{cat.description}</p>
-                  )}
-
-                  {/* Subcategories pill tags */}
-                  {cat.subCategories && cat.subCategories.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5 pt-1">
-                      {cat.subCategories.map((sub, i) => (
-                        <span
-                          key={i}
-                          className="px-2 py-0.5 bg-[#181311] text-[#C8B8A6] border border-[#3E322A] text-[10px] rounded-xs flex items-center space-x-1"
-                        >
-                          <ChevronRight size={10} className="text-[#B49A62]" />
-                          <span>{typeof sub === 'string' ? sub : sub.name}</span>
-                        </span>
-                      ))}
-                    </div>
+                    <p className={`text-xs font-light ${isDark ? 'text-[#8E7766]' : 'text-[#6F5847]'}`}>
+                      {cat.description}
+                    </p>
                   )}
                 </div>
               ))}

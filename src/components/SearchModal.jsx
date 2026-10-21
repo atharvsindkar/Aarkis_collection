@@ -19,11 +19,11 @@ export default function SearchModal() {
     ? PRODUCTS.filter((p) => {
         const q = query.toLowerCase();
         return (
-          p.name.toLowerCase().includes(q) ||
-          p.category.toLowerCase().includes(q) ||
-          p.subCategory.toLowerCase().includes(q) ||
-          p.description.toLowerCase().includes(q) ||
-          p.variants.some((v) => v.name.toLowerCase().includes(q))
+          (p.name || '').toLowerCase().includes(q) ||
+          (p.category || '').toLowerCase().includes(q) ||
+          (p.subCategory || '').toLowerCase().includes(q) ||
+          (p.description || '').toLowerCase().includes(q) ||
+          (p.variants || []).some((v) => (v.name || v.colorName || '').toLowerCase().includes(q))
         );
       })
     : PRODUCTS;
@@ -124,7 +124,7 @@ export default function SearchModal() {
                 >
                   <div className="flex items-center space-x-4">
                     <img
-                      src={product.variants[0].image}
+                      src={product.variants?.[0]?.image || product.image || '/images/products/waistcoat-charcoal-grey.jpg'}
                       alt={product.name}
                       className="w-12 h-16 object-cover object-top rounded-xs border border-[#E8E0D2]"
                     />
@@ -136,7 +136,7 @@ export default function SearchModal() {
                         {product.name}
                       </h4>
                       <span className="text-xs text-[#6F5847] font-semibold">
-                        {product.priceDisplay}
+                        {product.priceDisplay || `₹${(product.price || product.sellingPrice || 0).toLocaleString('en-IN')}`}
                       </span>
                     </div>
                   </div>

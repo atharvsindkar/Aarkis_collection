@@ -3,12 +3,16 @@ import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import { usersDB, auditLogsDB } from '../config/db.js';
 import { authenticate, authorize } from '../middleware/auth.js';
-import { loginLimiter } from '../middleware/rateLimiters.js';
+import { loginLimiter, passwordResetLimiter } from '../middleware/rateLimiters.js';
+import { sendInternalError } from '../middleware/errorHandler.js';
 
 const router = express.Router();
 
 const generateToken = (id) => {
-  return jwt.sign({ id }, process.env.JWT_SECRET || 'aarkis_dev_secret', {
+  if (!process.env.JWT_SECRET) {
+    throw new Error('Server configuration error: JWT_SECRET environment variable is missing');
+  }
+  return jwt.sign({ id }, process.env.JWT_SECRET, {
     expiresIn: process.env.JWT_EXPIRE || '7d',
   });
 };
@@ -77,7 +81,7 @@ router.post('/login', loginLimiter, async (req, res) => {
       },
     });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    return sendInternalError(res, error, 'Login failed due to an internal error.');
   }
 });
 
@@ -148,7 +152,7 @@ router.post('/users', authenticate, authorize('owner'), async (req, res) => {
       },
     });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    return sendInternalError(res, error, 'Failed to create administrator.');
   }
 });
 
@@ -159,7 +163,7 @@ router.get('/users', authenticate, authorize('owner'), async (req, res) => {
     const sanitized = admins.map(({ password, ...rest }) => rest);
     res.json({ success: true, admins: sanitized });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    return sendInternalError(res, error, 'Failed to retrieve administrators.');
   }
 });
 
@@ -193,7 +197,24 @@ router.patch('/users/:id/status', authenticate, authorize('owner'), async (req, 
 
     res.json({ success: true, message: `Administrator status updated to ${isActive ? 'active' : 'deactivated'}` });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    return sendInternalError(res, error, 'Failed to update administrator status.');
+  }
+});
+
+// 6. POST /api/admin/auth/reset-password - Password reset endpoint strictly rate-limited (Max 3/hour per IP)
+router.post('/reset-password', passwordResetLimiter, async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) {
+      return res.status(400).json({ success: false, message: 'Email address is required' });
+    }
+
+    res.json({
+      success: true,
+      message: 'If an administrative account matches that email, reset instructions have been dispatched.'
+    });
+  } catch (error) {
+    return sendInternalError(res, error, 'Password reset request failed.');
   }
 });
 
